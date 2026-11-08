@@ -1,6 +1,6 @@
 # 需要 Godot 侧处理的 Issue
 
-Wiki 只读 `Godot/assets/converted`，**与地图文件无关**：wiki 的验收只看 converted 里的产物
+Wiki 只读 `Godot/extract`，**与地图文件无关**：wiki 的验收只看 converted 里的产物
 （glb / tscn / tres / wc3.json）能否正确加载与渲染。地图级计数（BootyBay 之类）属于 Godot 侧自查，不写进 wiki 验收。
 
 ## 约定

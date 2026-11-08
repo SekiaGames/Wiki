@@ -133,7 +133,7 @@ textures[2]  = { replaceableId: 2, path: "" }        // 2 = TeamGlow
 materials[1] = { layers: [{ filterMode: 3, textureId: 2, alpha: 0.75 }] }
                                                        // 3 = ADDITIVE
 02_mat1.tres: shader = war3_model_add
-              base_texture = res://assets/converted/ReplaceableTextures/TeamGlow/TeamGlow00.png
+              base_texture = res://extract/ReplaceableTextures/TeamGlow/TeamGlow00.png
               layer_alpha  = 0.75
 TeamGlow00.png = 32×32 RGBA，全图 (1, 0, 0, 255) —— 纯红
 ```

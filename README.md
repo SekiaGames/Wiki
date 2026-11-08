@@ -1,6 +1,6 @@
 # 资源预览 Wiki
 
-只读的 War3 资源档案馆，用浏览器打开。资源全部来自 `../Godot/assets/converted`，不复制、不写入、不生成索引文件。
+只读的 War3 资源档案馆，用浏览器打开。资源全部来自 `../Godot/extract`，不复制、不写入、不生成索引文件。
 
 当前进度：**P0 界面全量 + 功能打桩**。设计细节见 `PLAN.md`。
 
@@ -157,7 +157,7 @@ Wiki/
 | 0003 | 粒子 / ribbon 未导出 | 排队中 |
 | 0004 | 建筑露出一圈施工脚手架 | 待确认 |
 
-**wiki 的验收只看 `Godot/assets/converted`**：模型能否加载、几何是否完整、动画是否绑定成功、geoset 是否与 tscn 一致；
+**wiki 的验收只看 `Godot/extract`**：模型能否加载、几何是否完整、动画是否绑定成功、geoset 是否与 tscn 一致；
 地图级计数（BootyBay 之类）由 Godot 侧自查，与 wiki 无关。
 
 ## 调试参数

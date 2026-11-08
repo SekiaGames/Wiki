@@ -88,14 +88,14 @@ case "CLID": ParseCollisionShapeNodes(r, m, end); break;
 4. `<Model>_anims.tres` 的动画仍能全部绑定（控制台无「未绑定轨道」告警）
 
 地图级计数（`--map-report` / `--shot`）属于 **Godot 侧自查**，不作为 wiki 的验收项 ——
-wiki 只读 `Godot/assets/converted`，与地图文件无关。
+wiki 只读 `Godot/extract`，与地图文件无关。
 
 ## 验证用命令
 
 ```python
 # 看根节点数与节点/骨骼总数（当前：17 个根、86 节点、77 joint）
 import json, struct
-path = 'Godot/assets/converted/Units/Human/HeroMountainKing/HeroMountainKing.glb'
+path = 'Godot/extract/Units/Human/HeroMountainKing/HeroMountainKing.glb'
 data = open(path, 'rb').read()
 length = struct.unpack_from('<I', data, 12)[0]
 gltf = json.loads(data[20:20 + length])

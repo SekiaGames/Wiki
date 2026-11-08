@@ -54,7 +54,7 @@ wiki 侧用 `THREE.Points` / 自建 ribbon mesh 还原（单模型预览不需�
 3. 没有粒子数据的模型不受影响：缺 `*.fx.json` 时 wiki 静默跳过，控制台无 404 噪音
 
 地图里火把的观感属于 **Godot 侧自查**（`--shot` 同机位对比），wiki 不参与 —— wiki 只读
-`Godot/assets/converted`，与地图文件无关。
+`Godot/extract`，与地图文件无关。
 
 ## 回复区（Godot 侧填写）
 

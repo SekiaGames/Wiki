@@ -1,6 +1,6 @@
 # 资源预览 Wiki —— 设计方案
 
-目标：一个**纯静态**浏览器站点，只读 `Godot/assets/converted`，用于美术/策划预览资源、以及作为 Agent 与你协作时的共同事实来源（"这个模型叫什么、有哪些动画、技能图标是哪个"）。
+目标：一个**纯静态**浏览器站点，只读 `Godot/extract`，用于美术/策划预览资源、以及作为 Agent 与你协作时的共同事实来源（"这个模型叫什么、有哪些动画、技能图标是哪个"）。
 
 不写资源、不建数据库、不改 converted 树。
 
@@ -60,7 +60,7 @@
 
 - 纯静态 HTML + 原生 ES Module，无打包器、无 node_modules 依赖（three.js 直接 vendor 到 `Wiki/vendor/`）。
 - **必须走 http 服务**：`file://` 下 ES module 与 GLB fetch 都会被浏览器拦。提供 `Wiki/tools/serve.py`（`http.server`，根目录 `D:/WorldEditor`，端口 8123）。
-- 资源用相对 URL 引用 `/Godot/assets/converted/...`，**不拷贝、不复制 1.3 GB**，converted 重新解压后 wiki 自动跟着变。
+- 资源用相对 URL 引用 `/Godot/extract/...`，**不拷贝、不复制 1.3 GB**，converted 重新解压后 wiki 自动跟着变。
 - **不生成任何索引/缓存文件**：目录列表与文件读取都走 `serve.py` 的只读接口（`/api/asset/list`、`/api/asset/read`），
   浏览器内存里组装，`Wiki/` 只有源码。
 - 路由用 hash（`#/units/Hmkg/skills`），刷新、分享、直达某个标签页都成立。
@@ -115,7 +115,7 @@ D:/WorldEditor/
 │  ├─ vendor/three/             three.module.js + GLTFLoader + OrbitControls（P1 加入）
 │  └─ tools/
 │     └─ serve.py              只读服务（静态 + /api/asset/list + /api/asset/read）
-└─ Godot/assets/converted/      ← 原样引用
+└─ Godot/extract/      ← 原样引用
 ```
 
 ---

@@ -46,7 +46,7 @@ wiki 里模型的所有 geoset 默认全显，游戏里不该出现的部件也�
 3. 游戏里本来就该显示的部件不能少（对照 Godot 编辑器里同一个场景）
 4. 详情页「模型」标签仍然可以手动开关每个 geoset
 
-地图级计数不参与 wiki 验收（wiki 只读 `Godot/assets/converted`）。
+地图级计数不参与 wiki 验收（wiki 只读 `Godot/extract`）。
 
 ## 回复区（Godot 侧填写）
 
