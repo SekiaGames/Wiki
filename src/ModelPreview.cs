@@ -241,11 +241,6 @@ public partial class ModelPreview : SubViewportContainer
         if (_player == null || string.IsNullOrEmpty(animation)) return;
         if (!Animations.Contains(animation)) return;
         _playing = animation;
-        if (_player.HasAnimation(animation))
-        {
-            Animation clip = _player.GetAnimation(animation);
-            if (clip != null) clip.LoopMode = Animation.LoopModeEnum.None;
-        }
         _player.Play(animation);
         _paused = false;
     }
@@ -306,7 +301,7 @@ public partial class ModelPreview : SubViewportContainer
         ApplyParticles();
     }
 
-    public bool ParticlesEnabled { get; private set; }
+    public bool ParticlesEnabled { get; private set; } = true;
 
     void ApplyParticles()
     {

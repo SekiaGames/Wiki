@@ -495,14 +495,21 @@ public static class Data
         if (payload.VariantType != Variant.Type.Dictionary) return null;
 
         Godot.Collections.Dictionary root = payload.AsGodotDictionary();
-        if (!root.ContainsKey("materials")) return null;
+        if (!root.ContainsKey("materials") || !root.ContainsKey("geosets")) return null;
 
         Godot.Collections.Array materials = root["materials"].AsGodotArray();
-        float[] result = new float[materials.Count];
-        for (int i = 0; i < materials.Count; i++)
+        Godot.Collections.Array geosets = root["geosets"].AsGodotArray();
+        float[] result = new float[geosets.Count];
+        for (int i = 0; i < geosets.Count; i++)
         {
             result[i] = -1f;
-            Godot.Collections.Dictionary material = materials[i].AsGodotDictionary();
+            Godot.Collections.Dictionary geoset = geosets[i].AsGodotDictionary();
+            if (!geoset.ContainsKey("materialId")) continue;
+
+            int materialId = geoset["materialId"].AsInt32();
+            if (materialId < 0 || materialId >= materials.Count) continue;
+
+            Godot.Collections.Dictionary material = materials[materialId].AsGodotDictionary();
             if (!material.ContainsKey("layers")) continue;
 
             Godot.Collections.Array layers = material["layers"].AsGodotArray();
