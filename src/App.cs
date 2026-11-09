@@ -102,7 +102,7 @@ public partial class App : Control
             if (node is not MeshInstance3D { Mesh: not null } mesh) continue;
 
             Aabb local = mesh.GlobalTransform * mesh.GetAabb();
-            GD.Print($"[inspect] mesh{index} {mesh.Name} visible={mesh.IsVisibleInTree()} surfaces={mesh.Mesh.GetSurfaceCount()} aabb={local}");
+            GD.Print($"[inspect] mesh{index} {mesh.Name} visible={mesh.Visible} inTree={mesh.IsVisibleInTree()} surfaces={mesh.Mesh.GetSurfaceCount()} aabb={local}");
 
             for (int i = 0; i < mesh.Mesh.GetSurfaceCount(); i++)
             {
