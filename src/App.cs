@@ -6,6 +6,7 @@ public partial class App : Control
 
     Sidebar _sidebar;
     Control _pageHost;
+    Control _page;
     Label _crumb;
     Label _topStat;
     string _category = "overview";
@@ -156,14 +157,26 @@ public partial class App : Control
 
     async void CaptureShot(string file, string nav)
     {
+        string clip = null;
         if (!string.IsNullOrEmpty(nav))
         {
+            int pipe = nav.IndexOf('|');
+            if (pipe > 0)
+            {
+                clip = nav[(pipe + 1)..];
+                nav = nav[..pipe];
+            }
             int colon = nav.IndexOf(':');
             if (colon > 0) Navigate(nav[..colon], nav[(colon + 1)..]);
             else Navigate(nav);
         }
 
         await ToSignal(GetTree().CreateTimer(1.5), SceneTreeTimer.SignalName.Timeout);
+        if (!string.IsNullOrEmpty(clip) && _page is DetailPage detail)
+        {
+            detail.ApplyClip(clip);
+            await ToSignal(GetTree().CreateTimer(0.6), SceneTreeTimer.SignalName.Timeout);
+        }
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
 
         Image image = GetViewport().GetTexture().GetImage();
@@ -266,6 +279,7 @@ public partial class App : Control
         };
 
         _pageHost.AddChild(page);
+        _page = page;
         UpdateTopStat();
     }
 }

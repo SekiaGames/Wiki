@@ -73,6 +73,9 @@ Wiki/
 
 ```bash
 Godot --path Wiki -- --shot=/tmp/a.png@units:Hmkg   # 截图并退出
+Godot --path Wiki -- --shot=/tmp/a.png@units:htow|Stand\ Upgrade\ Second   # 截图并切到指定动画
 Godot --path Wiki -- --inspect=Units/Human/Footman/Footman.tscn   # 打印网格 / 材质 / 动画 / 包围盒
 Godot --path Wiki -- --pack   # 打印 pck 挂载状态、res:// 根目录、.godot/exported 条目数
 ```
+
+`--shot` 的动画段在 `|` 之后：`Stand*` 系列按「形态」处理（定位首帧并暂停、关粒子），其它按普通播放处理。

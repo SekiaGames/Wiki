@@ -187,10 +187,11 @@ public partial class DetailPage : Page
         StyleOption(speed);
         speed.AddItem("0.5×", 0);
         speed.AddItem("1×", 1);
-        speed.AddItem("1.5×", 2);
-        speed.AddItem("2×", 3);
+        speed.AddItem("2×", 2);
+        speed.AddItem("4×", 3);
+        speed.AddItem("8×", 4);
         speed.Selected = 1;
-        speed.ItemSelected += index => preview.SetSpeed(index switch { 0 => 0.5f, 2 => 1.5f, 3 => 2f, _ => 1f });
+        speed.ItemSelected += index => preview.SetSpeed(index switch { 0 => 0.5f, 2 => 2f, 3 => 4f, 4 => 8f, _ => 1f });
         bar.AddChild(speed);
 
         OptionButton team = new() { CustomMinimumSize = new Vector2(88, 0) };
@@ -245,6 +246,30 @@ public partial class DetailPage : Page
     static string LevelName(int level)
     {
         return level > 0 && level < LevelNumbers.Length ? LevelNumbers[level] : $"{level}级";
+    }
+
+    public void ApplyClip(string clip)
+    {
+        if (_preview == null || string.IsNullOrEmpty(clip)) return;
+        if (_preview.Animations.Count == 0)
+        {
+            _preview.Loaded += () => ApplyClip(clip);
+            return;
+        }
+
+        if (UpgradeLevel(clip) > 0)
+        {
+            _preview.PlayStatic(clip);
+            _preview.SetParticles(false);
+        }
+        else
+        {
+            _preview.SetParticles(true);
+            _preview.Play(clip);
+        }
+        _preview.Frame();
+        int index = _preview.Animations.IndexOf(clip);
+        if (index >= 0 && _animationSelect != null) _animationSelect.Selected = index;
     }
 
     void FillFormButtons(HBoxContainer host, ModelPreview preview)
