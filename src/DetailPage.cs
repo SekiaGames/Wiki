@@ -163,9 +163,25 @@ public partial class DetailPage : Page
         play.Pressed += () => preview.Play(CurrentAnimation(preview));
         bar.AddChild(play);
 
+        Button pause = Ui.ToolButton("⏸ 暂停", 11);
+        pause.Pressed += () =>
+        {
+            preview.TogglePause();
+            pause.Text = preview.IsPaused ? "▶ 继续" : "⏸ 暂停";
+        };
+        bar.AddChild(pause);
+
         Button replay = Ui.ToolButton("重播", 11);
         replay.Pressed += () => preview.Frame();
         bar.AddChild(replay);
+
+        Button particles = Ui.ToolButton(preview.ParticlesEnabled ? "粒子 开" : "粒子 关", 11);
+        particles.Pressed += () =>
+        {
+            preview.SetParticles(!preview.ParticlesEnabled);
+            particles.Text = preview.ParticlesEnabled ? "粒子 开" : "粒子 关";
+        };
+        bar.AddChild(particles);
 
         OptionButton speed = new() { CustomMinimumSize = new Vector2(74, 0) };
         StyleOption(speed);
@@ -196,7 +212,95 @@ public partial class DetailPage : Page
         bar.AddChild(Ui.Spacer());
         _animationCount = Ui.Label($"{preview.Animations.Count} 条动画", 10, Ui.Faint);
         bar.AddChild(_animationCount);
-        return bar;
+
+        VBoxContainer stack = Ui.VBox(8);
+        stack.AddChild(bar);
+        HBoxContainer forms = Ui.HBox(6);
+        forms.Visible = false;
+        stack.AddChild(forms);
+        preview.Loaded += () => FillFormButtons(forms, preview);
+        FillFormButtons(forms, preview);
+        return stack;
+    }
+
+    static readonly string[] LevelNumbers = { "", "一级", "二级", "三级", "四级", "五级" };
+
+    static int UpgradeLevel(string clip)
+    {
+        if (!clip.StartsWith("Stand", StringComparison.OrdinalIgnoreCase)) return -1;
+        if (clip.StartsWith("Stand Work", StringComparison.OrdinalIgnoreCase)) return -1;
+        if (clip.StartsWith("Stand Portrait", StringComparison.OrdinalIgnoreCase)) return -1;
+        if (clip.Length == "Stand".Length) return 1;
+        if (!clip.StartsWith("Stand Upgrade", StringComparison.OrdinalIgnoreCase)) return -1;
+        string tail = clip["Stand Upgrade".Length..].Trim().ToLowerInvariant();
+        return tail switch
+        {
+            "first" => 2,
+            "second" => 3,
+            "third" => 4,
+            _ => -1,
+        };
+    }
+
+    static string LevelName(int level)
+    {
+        return level > 0 && level < LevelNumbers.Length ? LevelNumbers[level] : $"{level}级";
+    }
+
+    void FillFormButtons(HBoxContainer host, ModelPreview preview)
+    {
+        Ui.Clear(host);
+        host.Visible = false;
+        if (preview.Animations.Count == 0) return;
+
+        List<(int Level, string Clip)> forms = new();
+        List<(int Level, string Clip)> upgrades = new();
+        foreach (string clip in preview.Animations)
+        {
+            int level = UpgradeLevel(clip);
+            if (level > 0) forms.Add((level, clip));
+            else if (clip.StartsWith("Birth Upgrade", StringComparison.OrdinalIgnoreCase)) upgrades.Add((UpgradeLevel("Stand" + clip["Birth".Length..]), clip));
+        }
+
+        if (forms.Count == 0) return;
+        forms.Sort((a, b) => a.Level.CompareTo(b.Level));
+
+        host.AddChild(Ui.Label("形态", 10, Ui.Faint));
+        foreach ((int level, string clip) in forms)
+        {
+            string clipName = clip;
+            Button button = Ui.ToolButton(LevelName(level), 11);
+            button.Pressed += () =>
+            {
+                preview.PlayStatic(clipName);
+                preview.SetParticles(false);
+                preview.Frame();
+                int index = preview.Animations.IndexOf(clipName);
+                if (index >= 0) _animationSelect.Selected = index;
+            };
+            host.AddChild(button);
+        }
+
+        if (upgrades.Count > 0)
+        {
+            upgrades.Sort((a, b) => a.Level.CompareTo(b.Level));
+            host.AddChild(Ui.Label("升级动画", 10, Ui.Faint));
+            foreach ((int level, string clip) in upgrades)
+            {
+                string clipName = clip;
+                Button button = Ui.ToolButton($"升到{LevelName(level)}", 11);
+                button.Pressed += () =>
+                {
+                    preview.SetParticles(true);
+                    preview.Play(clipName);
+                    int index = preview.Animations.IndexOf(clipName);
+                    if (index >= 0) _animationSelect.Selected = index;
+                };
+                host.AddChild(button);
+            }
+        }
+
+        host.Visible = true;
     }
 
     Label _animationCount;

@@ -129,6 +129,7 @@ public partial class ModelPreview : SubViewportContainer
         }
 
         ApplyDetailLayers(Data.MaterialDetailAlpha(Data.Wc3JsonFor(relativeScenePath)));
+        ApplyParticles();
         Frame();
         ApplyTeamColor();
         Loaded?.Invoke();
@@ -197,6 +198,48 @@ public partial class ModelPreview : SubViewportContainer
         if (_player == null || string.IsNullOrEmpty(animation)) return;
         if (!Animations.Contains(animation)) return;
         _player.Play(animation);
+        _paused = false;
+    }
+
+    public void PlayStatic(string animation)
+    {
+        if (_player == null || string.IsNullOrEmpty(animation)) return;
+        if (!Animations.Contains(animation)) return;
+        _player.Play(animation);
+        _player.Seek(0, true);
+        _player.Pause();
+        _paused = true;
+    }
+
+    public void TogglePause()
+    {
+        if (_player == null) return;
+        _paused = !_paused;
+        if (_paused) _player.Pause();
+        else _player.Play();
+    }
+
+    public bool IsPaused => _paused;
+
+    bool _paused;
+
+    public void SetParticles(bool enabled)
+    {
+        ParticlesEnabled = enabled;
+        ApplyParticles();
+    }
+
+    public bool ParticlesEnabled { get; private set; }
+
+    void ApplyParticles()
+    {
+        if (_model == null) return;
+
+        foreach (Node node in Walk(_model))
+        {
+            if (node is GpuParticles3D gpu) gpu.Visible = ParticlesEnabled;
+            else if (node is CpuParticles3D cpu) cpu.Emitting = ParticlesEnabled;
+        }
     }
 
     public void SetSpeed(float speed)
