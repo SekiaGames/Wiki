@@ -158,6 +158,7 @@ public partial class App : Control
     async void CaptureShot(string file, string nav)
     {
         string clip = null;
+        float seek = -1f;
         if (!string.IsNullOrEmpty(nav))
         {
             int pipe = nav.IndexOf('|');
@@ -165,6 +166,13 @@ public partial class App : Control
             {
                 clip = nav[(pipe + 1)..];
                 nav = nav[..pipe];
+                int at = clip.IndexOf('@');
+                if (at > 0)
+                {
+                    float.TryParse(clip[(at + 1)..], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out seek);
+                    clip = clip[..at];
+                }
             }
             int colon = nav.IndexOf(':');
             if (colon > 0) Navigate(nav[..colon], nav[(colon + 1)..]);
@@ -174,7 +182,7 @@ public partial class App : Control
         await ToSignal(GetTree().CreateTimer(1.5), SceneTreeTimer.SignalName.Timeout);
         if (!string.IsNullOrEmpty(clip) && _page is DetailPage detail)
         {
-            detail.ApplyClip(clip);
+            detail.ApplyClip(clip, seek);
             await ToSignal(GetTree().CreateTimer(0.6), SceneTreeTimer.SignalName.Timeout);
         }
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);

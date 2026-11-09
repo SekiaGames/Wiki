@@ -75,6 +75,14 @@ public partial class ModelPreview : SubViewportContainer
         CallDeferred(nameof(FlushPending));
     }
 
+    public override void _Ready()
+    {
+        _viewport.SizeChanged += () =>
+        {
+            if (_model != null) Frame();
+        };
+    }
+
     void FlushPending()
     {
         if (_pendingScene == null) return;
@@ -231,6 +239,7 @@ public partial class ModelPreview : SubViewportContainer
     {
         if (_player == null || string.IsNullOrEmpty(animation)) return;
         if (!Animations.Contains(animation)) return;
+        _playing = animation;
         _player.Play(animation);
         _paused = false;
     }
@@ -239,6 +248,7 @@ public partial class ModelPreview : SubViewportContainer
     {
         if (_player == null || string.IsNullOrEmpty(animation)) return;
         if (!Animations.Contains(animation)) return;
+        _playing = animation;
         _player.Play(animation);
         _player.Seek(0, true);
         _player.Pause();
@@ -253,9 +263,36 @@ public partial class ModelPreview : SubViewportContainer
         else _player.Play();
     }
 
+    public void Pause()
+    {
+        if (_player == null) return;
+        _paused = true;
+        _player.Pause();
+    }
+
     public bool IsPaused => _paused;
 
     bool _paused;
+    string _playing = "";
+
+    public float AnimationLength
+    {
+        get
+        {
+            if (_player == null || _playing.Length == 0) return 0f;
+            if (!_player.HasAnimation(_playing)) return 0f;
+            Animation animation = _player.GetAnimation(_playing);
+            return animation == null ? 0f : (float)animation.Length;
+        }
+    }
+
+    public float AnimationPosition => _player == null ? 0f : (float)_player.CurrentAnimationPosition;
+
+    public void Seek(float seconds)
+    {
+        if (_player == null) return;
+        _player.Seek(Mathf.Max(0f, seconds), true);
+    }
 
     public void SetParticles(bool enabled)
     {
@@ -373,6 +410,7 @@ public partial class ModelPreview : SubViewportContainer
         _model.QueueFree();
         _model = null;
         _player = null;
+        _playing = "";
         Animations.Clear();
     }
 

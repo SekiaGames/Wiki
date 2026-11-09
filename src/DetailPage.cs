@@ -97,15 +97,18 @@ public partial class DetailPage : Page
         return row;
     }
 
+    Control _stage;
+
     Control BuildStage(string scenePath, out ModelPreview preview)
     {
         Control wrapper = new()
         {
-            CustomMinimumSize = new Vector2(0, 460),
+            CustomMinimumSize = new Vector2(0, StageHeight()),
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
             ClipContents = true,
             MouseFilter = MouseFilterEnum.Pass,
         };
+        _stage = wrapper;
 
         PanelContainer frame = Ui.Panel(Ui.Panel2, Ui.Line, 4);
         frame.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
@@ -183,17 +186,6 @@ public partial class DetailPage : Page
         };
         bar.AddChild(particles);
 
-        OptionButton speed = new() { CustomMinimumSize = new Vector2(74, 0) };
-        StyleOption(speed);
-        speed.AddItem("0.5×", 0);
-        speed.AddItem("1×", 1);
-        speed.AddItem("2×", 2);
-        speed.AddItem("4×", 3);
-        speed.AddItem("8×", 4);
-        speed.Selected = 1;
-        speed.ItemSelected += index => preview.SetSpeed(index switch { 0 => 0.5f, 2 => 2f, 3 => 4f, 4 => 8f, _ => 1f });
-        bar.AddChild(speed);
-
         OptionButton team = new() { CustomMinimumSize = new Vector2(88, 0) };
         StyleOption(team);
         for (int i = 0; i < TeamColors.Length; i++) team.AddItem(TeamColors[i].Label, i);
@@ -216,12 +208,91 @@ public partial class DetailPage : Page
 
         VBoxContainer stack = Ui.VBox(8);
         stack.AddChild(bar);
+        stack.AddChild(BuildScrubber(preview));
         HBoxContainer forms = Ui.HBox(6);
         forms.Visible = false;
         stack.AddChild(forms);
         preview.Loaded += () => FillFormButtons(forms, preview);
         FillFormButtons(forms, preview);
         return stack;
+    }
+
+    float StageHeight()
+    {
+        if (!IsInsideTree()) return 640f;
+
+        Vector2 size = GetViewportRect().Size;
+        float viewportHeight = size.Y > 1f ? size.Y : 1000f;
+        return Mathf.Clamp(viewportHeight - 360f, 360f, 1400f);
+    }
+
+    void UpdateStageHeight()
+    {
+        if (_stage == null) return;
+
+        float height = StageHeight();
+        if (!Mathf.IsEqualApprox(_stage.CustomMinimumSize.Y, height))
+        {
+            _stage.CustomMinimumSize = new Vector2(0, height);
+        }
+    }
+
+    HSlider _scrubber;
+    Label _scrubLabel;
+    bool _scrubbing;
+
+    Control BuildScrubber(ModelPreview preview)
+    {
+        HBoxContainer row = Ui.HBox(8);
+        HBoxContainer box = Ui.HBox(0);
+        box.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        row.AddChild(box);
+
+        _scrubber = new HSlider
+        {
+            MinValue = 0,
+            MaxValue = 1,
+            Step = 0.001,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            CustomMinimumSize = new Vector2(200, 0),
+        };
+        _scrubber.DragStarted += () => _scrubbing = true;
+        _scrubber.DragEnded += changed =>
+        {
+            _scrubbing = false;
+            preview.Seek((float)_scrubber.Value);
+        };
+        _scrubber.ValueChanged += value =>
+        {
+            if (_scrubbing) preview.Seek((float)value);
+        };
+        box.AddChild(_scrubber);
+
+        _scrubLabel = Ui.Label("0.0 / 0.0s", 10, Ui.Faint);
+        _scrubLabel.CustomMinimumSize = new Vector2(92, 0);
+        _scrubLabel.HorizontalAlignment = HorizontalAlignment.Right;
+        row.AddChild(_scrubLabel);
+        return row;
+    }
+
+    public override void _Process(double delta)
+    {
+        UpdateStageHeight();
+        if (_preview == null || _scrubber == null) return;
+
+        float length = _preview.AnimationLength;
+        if (length > 0.01f && !Mathf.IsEqualApprox((float)_scrubber.MaxValue, length))
+        {
+            _scrubber.MaxValue = length;
+        }
+        if (_scrubbing) return;
+
+        float position = Mathf.Clamp(_preview.AnimationPosition, 0f, (float)_scrubber.MaxValue);
+        _scrubber.SetValueNoSignal(position);
+        if (_scrubLabel != null)
+        {
+            _scrubLabel.Text = $"{position:0.0} / {length:0.0}s";
+        }
     }
 
     static readonly string[] LevelNumbers = { "", "一级", "二级", "三级", "四级", "五级" };
@@ -248,16 +319,23 @@ public partial class DetailPage : Page
         return level > 0 && level < LevelNumbers.Length ? LevelNumbers[level] : $"{level}级";
     }
 
-    public void ApplyClip(string clip)
+    public void ApplyClip(string clip, float seekSeconds = -1f)
     {
         if (_preview == null || string.IsNullOrEmpty(clip)) return;
         if (_preview.Animations.Count == 0)
         {
-            _preview.Loaded += () => ApplyClip(clip);
+            _preview.Loaded += () => ApplyClip(clip, seekSeconds);
             return;
         }
 
-        if (UpgradeLevel(clip) > 0)
+        if (seekSeconds >= 0f)
+        {
+            _preview.SetParticles(true);
+            _preview.Play(clip);
+            _preview.Seek(seekSeconds);
+            _preview.Pause();
+        }
+        else if (UpgradeLevel(clip) > 0)
         {
             _preview.PlayStatic(clip);
             _preview.SetParticles(false);

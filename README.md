@@ -61,6 +61,7 @@ Wiki/
    `use_team_color` 的布料/皮革材质。
 3. **取景剔除超大面片**：TeamGlow 壳与部分建筑的施工面片比本体大数倍，取景按"剔除 TeamGlow 后可见网格"计算。
 4. **动画直接播 `AnimationPlayer`**：`AnimationTree` 状态机被关掉（`Active=false`），不还原游戏里的状态切换。
+   进度条直接 `Seek`，拖动即定帧；预览高度随窗口变化，窗口缩放会重新取景。
 5. **形态 / 升级快捷键只认命名约定**：`Stand` / `Stand Upgrade First` / `Stand Upgrade Second` 映射为一级 / 二级 /
    三级，「升到二级 / 三级」对应 `Birth Upgrade First` / `Birth Upgrade Second`。这些名字直接来自 MDX 序列名，
    建筑的多级几何本来就装在同一个模型里（`Buildings/Human/TownHall/TownHall.mdx` 同时含市政厅 / 要塞 / 城堡）。
