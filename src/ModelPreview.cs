@@ -150,7 +150,7 @@ public partial class ModelPreview : SubViewportContainer
         Vector3 right = Vector3.Right;
         Vector3 up = new(0f, Mathf.Cos(pitch), -Mathf.Sin(pitch));
         float tanVertical = Mathf.Tan(Mathf.DegToRad(_camera.Fov * 0.5f));
-        float aspect = _viewport.Size.Y > 1f ? _viewport.Size.X / _viewport.Size.Y : 1.6f;
+        float aspect = _viewport.Size.Y > 1f ? (float)_viewport.Size.X / _viewport.Size.Y : 1.6f;
         float tanHorizontal = tanVertical * Mathf.Max(aspect, 0.5f);
 
         float distance = 1f;
