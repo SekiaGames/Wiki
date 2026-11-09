@@ -10,7 +10,6 @@ public partial class ModelPreview : SubViewportContainer
     readonly Camera3D _camera;
     Node _model;
     AnimationPlayer _player;
-    Vector3 _focus;
     float _distance = 3f;
     float _zoom = 1f;
     bool _dragging;
@@ -44,7 +43,7 @@ public partial class ModelPreview : SubViewportContainer
         Godot.Environment environment = new()
         {
             BackgroundMode = Godot.Environment.BGMode.Color,
-            BackgroundColor = Color.FromHtml("0d0d12"),
+            BackgroundColor = Colors.Black,
             AmbientLightSource = Godot.Environment.AmbientSource.Color,
             AmbientLightColor = Color.FromHtml("d8d0c4"),
             AmbientLightEnergy = 0.6f,
@@ -140,26 +139,61 @@ public partial class ModelPreview : SubViewportContainer
         Aabb box = MergeBounds();
         if (box.Size.Length() <= 0.001f)
         {
-            _focus = Vector3.Zero;
             _distance = 4f;
-        }
-        else
-        {
-            _focus = box.GetCenter();
-            float aspect = _viewport.Size.Y > 1f ? _viewport.Size.X / _viewport.Size.Y : 1.6f;
-            float fitted = Mathf.Max(box.Size.Y * 0.5f, box.Size.X * 0.5f / Mathf.Max(aspect, 0.5f));
-            _distance = Mathf.Max(fitted, 0.3f) / Mathf.Tan(Mathf.DegToRad(_camera.Fov * 0.5f)) * 1.12f + box.Size.Z * 0.5f;
+            _zoom = 1f;
+            UpdateCamera();
+            return;
         }
 
+        Vector3 direction = ViewDirection();
+        float pitch = Mathf.DegToRad(ViewPitchDegrees);
+        Vector3 right = Vector3.Right;
+        Vector3 up = new(0f, Mathf.Cos(pitch), -Mathf.Sin(pitch));
+        float tanVertical = Mathf.Tan(Mathf.DegToRad(_camera.Fov * 0.5f));
+        float aspect = _viewport.Size.Y > 1f ? _viewport.Size.X / _viewport.Size.Y : 1.6f;
+        float tanHorizontal = tanVertical * Mathf.Max(aspect, 0.5f);
+
+        float distance = 1f;
+        foreach (Vector3 corner in Corners(box))
+        {
+            float depth = corner.Dot(direction);
+            distance = Mathf.Max(distance, depth + Mathf.Abs(corner.Dot(up)) / tanVertical);
+            distance = Mathf.Max(distance, depth + Mathf.Abs(corner.Dot(right)) / tanHorizontal);
+        }
+
+        _distance = distance * 1.06f;
         _zoom = 1f;
         UpdateCamera();
     }
 
+    static Vector3 ViewDirection()
+    {
+        float pitch = Mathf.DegToRad(ViewPitchDegrees);
+        return new Vector3(0f, Mathf.Sin(pitch), Mathf.Cos(pitch));
+    }
+
+    public const float ViewPitchDegrees = 45f;
+
+    static IEnumerable<Vector3> Corners(Aabb box)
+    {
+        foreach (float x in new[] { box.Position.X, box.End.X })
+        {
+            foreach (float y in new[] { box.Position.Y, box.End.Y })
+            {
+                foreach (float z in new[] { box.Position.Z, box.End.Z })
+                {
+                    yield return new Vector3(x, y, z);
+                }
+            }
+        }
+    }
+
     void UpdateCamera()
     {
-        float distance = _distance * _zoom;
-        _camera.Position = _focus + new Vector3(0, _focus.Y * 0.05f, distance);
-        _camera.LookAt(_focus, Vector3.Up);
+        _camera.Position = ViewDirection() * (_distance * _zoom);
+        _camera.LookAt(Vector3.Zero, Vector3.Up);
+        _camera.Near = Mathf.Max(0.05f, _distance * _zoom * 0.01f);
+        _camera.Far = _distance * _zoom * 20f;
     }
 
     Aabb MergeBounds()
