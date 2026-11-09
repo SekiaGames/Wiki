@@ -163,7 +163,11 @@ public partial class DetailPage : Page
         bar.AddChild(_animationSelect);
 
         Button play = Ui.ToolButton("▶ 播放", 11, true);
-        play.Pressed += () => preview.Play(CurrentAnimation(preview));
+        play.Pressed += () =>
+        {
+            preview.SetParticles(true);
+            preview.Play(CurrentAnimation(preview));
+        };
         bar.AddChild(play);
 
         Button pause = Ui.ToolButton("⏸ 暂停", 11);
@@ -209,6 +213,7 @@ public partial class DetailPage : Page
         VBoxContainer stack = Ui.VBox(8);
         stack.AddChild(bar);
         stack.AddChild(BuildScrubber(preview));
+        if (Lighting.Ready) stack.AddChild(BuildLightingRow(preview));
         HBoxContainer forms = Ui.HBox(6);
         forms.Visible = false;
         stack.AddChild(forms);
@@ -237,6 +242,42 @@ public partial class DetailPage : Page
         }
     }
 
+    Control BuildLightingRow(ModelPreview preview)
+    {
+        HBoxContainer row = Ui.HBox(8);
+        row.AddChild(Ui.Label("光照", 10, Ui.Faint));
+
+        HSlider slider = new()
+        {
+            MinValue = 0,
+            MaxValue = 24,
+            Step = 0.5,
+            Value = preview.Hour,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            CustomMinimumSize = new Vector2(200, 0),
+        };
+        Label readout = Ui.Label(FormatHour(preview.Hour), 10, Ui.Faint);
+        readout.CustomMinimumSize = new Vector2(48, 0);
+        readout.HorizontalAlignment = HorizontalAlignment.Right;
+
+        slider.ValueChanged += value =>
+        {
+            preview.SetHour((float)value);
+            readout.Text = FormatHour((float)value);
+        };
+
+        row.AddChild(slider);
+        row.AddChild(readout);
+        return row;
+    }
+
+    static string FormatHour(float hour)
+    {
+        int whole = Mathf.Clamp(Mathf.FloorToInt(hour), 0, 24);
+        int minutes = Mathf.Clamp(Mathf.RoundToInt((hour - whole) * 60f), 0, 59);
+        return $"{whole:00}:{minutes:00}";
+    }
+
     HSlider _scrubber;
     Label _scrubLabel;
     bool _scrubbing;
@@ -256,7 +297,11 @@ public partial class DetailPage : Page
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
             CustomMinimumSize = new Vector2(200, 0),
         };
-        _scrubber.DragStarted += () => _scrubbing = true;
+        _scrubber.DragStarted += () =>
+        {
+            _scrubbing = true;
+            preview.Pause();
+        };
         _scrubber.DragEnded += changed =>
         {
             _scrubbing = false;
@@ -264,7 +309,8 @@ public partial class DetailPage : Page
         };
         _scrubber.ValueChanged += value =>
         {
-            if (_scrubbing) preview.Seek((float)value);
+            if (!_scrubbing) return;
+            preview.Seek((float)value);
         };
         box.AddChild(_scrubber);
 

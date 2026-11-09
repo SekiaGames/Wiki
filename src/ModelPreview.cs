@@ -139,6 +139,7 @@ public partial class ModelPreview : SubViewportContainer
         ApplyParticles();
         Frame();
         ApplyTeamColor();
+        ApplyLighting();
         Loaded?.Invoke();
     }
 
@@ -240,6 +241,11 @@ public partial class ModelPreview : SubViewportContainer
         if (_player == null || string.IsNullOrEmpty(animation)) return;
         if (!Animations.Contains(animation)) return;
         _playing = animation;
+        if (_player.HasAnimation(animation))
+        {
+            Animation clip = _player.GetAnimation(animation);
+            if (clip != null) clip.LoopMode = Animation.LoopModeEnum.None;
+        }
         _player.Play(animation);
         _paused = false;
     }
@@ -376,9 +382,40 @@ public partial class ModelPreview : SubViewportContainer
         return false;
     }
 
-    void ApplyTeamColor()
+    public float Hour => _hour;
+
+    public void SetHour(float hour)
     {
-        if (_model == null) return;
+        _hour = Mathf.Clamp(hour, 0f, 24f);
+        ApplyLighting();
+    }
+
+    float _hour = 12f;
+
+    void ApplyLighting()
+    {
+        if (_model == null || !Lighting.Ready) return;
+
+        Lighting.Sample(_hour, out Vector3 direction, out Vector3 color, out Vector3 ambient);
+        foreach (Node node in Walk(_model))
+        {
+            if (node is not MeshInstance3D { Mesh: not null } mesh) continue;
+
+            for (int i = 0; i < mesh.Mesh.GetSurfaceCount(); i++)
+            {
+                Material material = mesh.GetSurfaceOverrideMaterial(i) ?? mesh.Mesh.SurfaceGetMaterial(i);
+                if (material is not ShaderMaterial shader) continue;
+
+                shader.SetShaderParameter("war3_lighting_enabled", true);
+                shader.SetShaderParameter("war3_scene_direction", direction);
+                shader.SetShaderParameter("war3_scene_color", color);
+                shader.SetShaderParameter("war3_scene_ambient", ambient);
+            }
+        }
+    }
+
+    void ApplyTeamColor()
+    {        if (_model == null) return;
 
         foreach (Node node in Walk(_model))
         {

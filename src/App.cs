@@ -18,6 +18,7 @@ public partial class App : Control
         Theme = Ui.BuildTheme();
 
         Assets.Init();
+        Lighting.Load();
         Data.Warm();
 
         BuildShell();
