@@ -283,7 +283,8 @@ public partial class App : Control
         Control page = category switch
         {
             "overview" => new OverviewPage(),
-            "units" or "abilities" or "doodads" or "models" or "sounds" or "textures" =>
+            "units" or "abilities" or "doodads" or "destructables" or "items" or "upgrades"
+                or "models" or "sounds" or "textures" or "tables" or "texts" =>
                 _detail == null ? (Control)new ListPage(category) : new DetailPage(category, _detail),
             _ => new PendingPage(category),
         };

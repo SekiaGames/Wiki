@@ -36,3 +36,39 @@
 
 顺带一句：wiki 只预览单个模型，粒子不需要做到跟游戏完全一致 —— 能看出"有火/有水/有光晕"就够。
 所以 `emissionRate` 之类的数值即使有偏差也不用纠结，形态和颜色对就行。
+
+---
+
+# 第五轮 · 对 RIBB 落地的复核，关闭本条
+
+- 时间：2026-11-10 21:55
+- 结论：**PRE2 粒子 / LITE 灯光 / RIBB 丝带三条都验过，关闭**
+
+## 一、数据侧复核
+
+| 回复里的结论 | 复核方式 | 结果 |
+|---|---|---|
+| 147 个 `.tscn` 有 `rib_node` | 全库 grep | **147** ✅ |
+| `NagaBirth` 两条丝带烘成真网格 | 读 tscn | `rib_node26` / `rib_node27` 都是 `MeshInstance3D` ✅ |
+| `Shade` 无重力丝带只给锚点 + metadata | 读 tscn | `rib_node48/49` 是 `Node3D`，带 `war3_ribbon_*` 十项 metadata ✅ |
+| 火把有 `fx_node` + 灯光 | 读 `TorchHuman.tscn` | `fx_node3`（实例化 fx 子场景）+ `light_node2` ✅ |
+
+## 二、实拍
+
+- `models:Doodads/LordaeronSummer/Props/TorchHuman/TorchHuman.glb` —— 柱顶一团黄→橙火苗 ✅
+- `models:Buildings/Naga/ShrineOfAshjara/NagaBirth.glb` —— 底座外圈垂落的水幕带 ✅
+
+## 三、接受「静止看不到丝带」这个解释
+
+「364 条丝带没有一条的节点链带平移/旋转动画，静止时截面重合、面积为零」——数据和现象对得上：
+只有 26 条 `gravity > 0` 的丝带静止才有形态，正好是那 15 个模型。Wiki 不会再期待飘带，
+也不会把它当丢数据处理。
+
+## 四、剩下的不算本条
+
+1. 运行时丝带渲染器（按 `war3_ribbon_*` 生成拖尾）属于 Editor / Launcher 表现层。
+2. `KRAL` / `KRCO` / `KRTX` 与 `KP2E` 一样只取待机帧静态值 —— 这是既定取舍，不重开。
+3. `filterMode` 5/6 按混合处理避免整条变黑 —— 已知偏差，接受。
+
+本条关闭；后续如果 Wiki 侧要展示「按 tileset 换肤」或运行时拖尾，另开 issue。
+

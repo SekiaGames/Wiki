@@ -50,10 +50,15 @@ public partial class DetailPage : Page
         {
             case "units": BuildUnit(); break;
             case "doodads": BuildDoodad(); break;
+            case "destructables": BuildDestructable(); break;
+            case "items": BuildItem(); break;
+            case "upgrades": BuildUpgrade(); break;
             case "models": BuildModel(); break;
             case "abilities": BuildAbility(); break;
             case "sounds": BuildSound(); break;
             case "textures": BuildTexture(); break;
+            case "tables": BuildTable(); break;
+            case "texts": BuildText(); break;
             default: _root.AddChild(PageParts.Empty("没有内容", "该分类暂不支持详情页。")); break;
         }
     }
@@ -326,6 +331,12 @@ public partial class DetailPage : Page
         UpdateStageHeight();
         if (_preview == null || _scrubber == null) return;
 
+        if (_animationCount != null)
+        {
+            string count = $"{_preview.Animations.Count} 条动画";
+            if (_animationCount.Text != count) _animationCount.Text = count;
+        }
+
         float length = _preview.AnimationLength;
         if (length > 0.01f && !Mathf.IsEqualApprox((float)_scrubber.MaxValue, length))
         {
@@ -405,6 +416,7 @@ public partial class DetailPage : Page
     {
         Ui.Clear(host);
         host.Visible = false;
+        if (_category is not ("units" or "doodads")) return;
         if (preview.Animations.Count == 0) return;
 
         List<(int Level, string Clip)> forms = new();
@@ -572,71 +584,28 @@ public partial class DetailPage : Page
 
     Control UnitSkills(UnitRow unit)
     {
-        if (unit.HeroAbilities.Count == 0)
+        if (unit.HeroAbilities.Count == 0 && unit.Abilities.Count == 0)
         {
-            return PageParts.Empty("没有英雄技能", "普通单位与建筑没有登记 heroAbilList。");
+            return PageParts.Empty("没有技能", "该单位既没有 heroAbilList 也没有 abilList。");
         }
 
-        GridContainer grid = new() { Columns = 4 };
-        grid.AddThemeConstantOverride("h_separation", 12);
-        grid.AddThemeConstantOverride("v_separation", 12);
-
-        foreach (string skillId in unit.HeroAbilities)
+        VBoxContainer box = Ui.VBox(12);
+        if (unit.HeroAbilities.Count > 0)
         {
-            if (Data.AbilityById == null || !Data.AbilityById.TryGetValue(skillId, out AbilityRow ability)) continue;
-
-            PanelContainer card = Ui.Panel(Ui.Panel2, Ui.Line, 4);
-            HBoxContainer row = Ui.HBox(10);
-            MarginContainer pad = Ui.Margin(10, 8, 10, 8);
-            pad.AddChild(row);
-            card.AddChild(pad);
-
-            Texture2D icon = Data.IconFor(ability);
-            row.AddChild(icon != null ? Ui.Image(icon, 44) : Ui.Label("✦", 20, Ui.Faint));
-
-            VBoxContainer text = Ui.VBox(2);
-            text.AddChild(Ui.Label(ability.Name, 12, Ui.Text));
-            text.AddChild(Ui.Label($"{ability.Id} · 按钮位 {ability.Pos}", 10, Ui.Faint));
-            row.AddChild(text);
-
-            card.GuiInput += ev =>
-            {
-                if (ev is InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true })
-                {
-                    _preview?.Play(ability.Anim);
-                }
-            };
-            grid.AddChild(card);
+            box.AddChild(PageParts.SectionTitle("英雄技能"));
+            box.AddChild(AbilityCards(unit.HeroAbilities, anim => _preview?.Play(anim)));
         }
-
-        if (grid.GetChildCount() == 0) return PageParts.Empty("没有可用技能", "heroAbilList 里的 id 在技能表里没有命中。");
-        return grid;
+        if (unit.Abilities.Count > 0)
+        {
+            box.AddChild(PageParts.SectionTitle("单位技能"));
+            box.AddChild(AbilityCards(unit.Abilities, anim => _preview?.Play(anim)));
+        }
+        return box;
     }
 
     Control UnitSounds(UnitRow unit, List<string> files)
     {
-        if (files.Count == 0) return PageParts.Empty("没有音效", "模型目录里没有 .wav 文件。");
-
-        VBoxContainer list = Ui.VBox(2);
-        foreach (string file in files)
-        {
-            string kind = SoundKindLabel.TryGetValue(Data.SoundKind(file), out string label) ? label : "其他";
-            HBoxContainer row = Ui.HBox(10);
-            Label kindLabel = Ui.Label(kind, 10, Ui.Faint);
-            kindLabel.CustomMinimumSize = new Vector2(56, 0);
-            row.AddChild(kindLabel);
-            row.AddChild(Ui.Label(file, 12, Ui.Dim));
-
-            Button play = Ui.ToolButton("▶ 试听", 10);
-            string path = $"{unit.ModelWc3[..unit.ModelWc3.LastIndexOf('/')]}/{file}";
-            play.Pressed += () => PlaySound(path);
-            row.AddChild(play);
-
-            MarginContainer pad = Ui.Margin(0, 3, 0, 3);
-            pad.AddChild(row);
-            list.AddChild(pad);
-        }
-        return list;
+        return SoundList(unit.ModelWc3[..unit.ModelWc3.LastIndexOf('/')], files);
     }
 
     Control UnitAttributes(UnitRow unit)
@@ -728,7 +697,344 @@ public partial class DetailPage : Page
                 ("变体", doodad.Variants.ToString()),
                 ("缩放", doodad.Scale.ToString("0.###")),
             })),
-            ("原始数据", () => RawBlock(new Dictionary<string, Dictionary<string, string>>()))));
+            ("原始数据", () => RawBlock(new Dictionary<string, Dictionary<string, string>>
+            {
+                ["Doodads"] = doodad.Raw ?? new Dictionary<string, string>(),
+            }))));
+    }
+
+    // ---------- 可破坏物 ----------
+
+    void BuildDestructable()
+    {
+        DestructableRow row = Data.DestructableById != null && Data.DestructableById.TryGetValue(_id, out DestructableRow found)
+            ? found
+            : null;
+        _root.AddChild(BackRow("可破坏物"));
+
+        if (row == null)
+        {
+            _root.AddChild(PageParts.Empty("没有这个可破坏物", $"id = {_id}"));
+            return;
+        }
+
+        _root.AddChild(TitleBlock(row.Name,
+            $"{row.Id} · {row.En} · {row.CategoryLabel} · {row.Target}",
+            row.File, null));
+
+        List<(int Index, string Glb)> variants = new();
+        for (int i = 0; i < row.Variants; i++)
+        {
+            string suffix = row.Variants > 1 ? i.ToString() : "";
+            string glb = Data.FindModel(row.Base + suffix) ?? Data.FindModel(row.Base);
+            if (glb != null) variants.Add((i, glb));
+        }
+
+        OptionButton variantSelect = null;
+        if (variants.Count > 1)
+        {
+            variantSelect = new OptionButton { CustomMinimumSize = new Vector2(96, 0) };
+            StyleOption(variantSelect);
+            for (int i = 0; i < variants.Count; i++) variantSelect.AddItem($"变体 {variants[i].Index + 1}", i);
+        }
+
+        string scene = variants.Count > 0 ? Data.SceneFor(variants[0].Glb) : null;
+        _root.AddChild(BuildStage(scene, out ModelPreview preview));
+        _preview = preview;
+
+        if (variantSelect != null)
+        {
+            variantSelect.ItemSelected += index =>
+            {
+                if (index < 0 || index >= variants.Count) return;
+                preview.ShowScene(Data.SceneFor(variants[(int)index].Glb));
+            };
+        }
+
+        _root.AddChild(BuildToolbar(preview, null, variantSelect));
+
+        List<string> sounds = Data.DirFiles(row.Dir, ".wav");
+
+        _root.AddChild(BuildTabs(
+            ("属性", () => SimpleGrid(new List<(string, string)>
+            {
+                ("类别", row.CategoryLabel),
+                ("目标类型", row.Target),
+                ("护甲类型", row.Armor),
+                ("生命", row.Hp.ToString()),
+                ("金钱", row.Gold.ToString()),
+                ("木材", row.Lumber.ToString()),
+                ("建造时间", row.BuildTime.ToString()),
+                ("修理时间", row.RepairTime.ToString()),
+                ("变体", row.Variants.ToString()),
+                ("缩放", $"{row.ScaleMin:0.##} ~ {row.ScaleMax:0.##}"),
+                ("半径", row.Radius.ToString("0.##")),
+                ("雾半径", row.FogRadius.ToString("0.##")),
+                ("死亡音效", row.DeathSound),
+                ("地形", row.Tilesets),
+                ("模型", row.File),
+            })),
+            ("音效", () => SoundList(row.Dir, sounds)),
+            ("原始数据", () => RawBlock(new Dictionary<string, Dictionary<string, string>>
+            {
+                ["DestructableData"] = row.Raw ?? new Dictionary<string, string>(),
+            }))));
+    }
+
+    // ---------- 物品 ----------
+
+    void BuildItem()
+    {
+        ItemRow item = Data.ItemById != null && Data.ItemById.TryGetValue(_id, out ItemRow found) ? found : null;
+        _root.AddChild(BackRow("物品"));
+
+        if (item == null)
+        {
+            _root.AddChild(PageParts.Empty("没有这个物品", $"id = {_id}"));
+            return;
+        }
+
+        _root.AddChild(TitleBlock(item.Name,
+            $"{item.Id} · {item.En} · {Data.ItemClassLabel(item.Klass)} · 等级 {item.Level}",
+            item.Tip, Data.IconFor(item.Icon)));
+
+        string glb = Data.FindModel(item.Base);
+        _root.AddChild(BuildStage(Data.SceneFor(glb), out ModelPreview preview));
+        _preview = preview;
+        _root.AddChild(BuildToolbar(preview));
+
+        _root.AddChild(BuildTabs(
+            ("属性", () => SimpleGrid(new List<(string, string)>
+            {
+                ("类型", Data.ItemClassLabel(item.Klass)),
+                ("等级", item.Level.ToString()),
+                ("金钱", item.Gold.ToString()),
+                ("木材", item.Lumber.ToString()),
+                ("生命", item.Hp.ToString()),
+                ("最大库存", item.StockMax.ToString()),
+                ("库存回复", item.StockRegen.ToString()),
+                ("使用次数", item.Uses > 0 ? item.Uses.ToString() : "—"),
+                ("优先级", item.Prio.ToString()),
+                ("可出售", item.Sellable ? "是" : "否"),
+                ("可典当", item.Pawnable ? "是" : "否"),
+                ("可丢弃", item.Droppable ? "是" : "否"),
+                ("强化道具", item.Powerup ? "是" : "否"),
+                ("消耗品", item.Perishable ? "是" : "否"),
+                ("可使用", item.Usable ? "是" : "否"),
+                ("模型", item.File),
+            })),
+            ("技能", () => AbilityCards(item.Abilities)),
+            ("原始数据", () => RawBlock(new Dictionary<string, Dictionary<string, string>>
+            {
+                ["ItemData"] = item.Raw ?? new Dictionary<string, string>(),
+            }))));
+    }
+
+    // ---------- 升级 ----------
+
+    void BuildUpgrade()
+    {
+        UpgradeRow upgrade = Data.UpgradeById != null && Data.UpgradeById.TryGetValue(_id, out UpgradeRow found) ? found : null;
+        _root.AddChild(BackRow("升级"));
+
+        if (upgrade == null)
+        {
+            _root.AddChild(PageParts.Empty("没有这个升级", $"id = {_id}"));
+            return;
+        }
+
+        string tip = upgrade.Tips.Count > 0 ? upgrade.Tips[0] : "";
+        _root.AddChild(TitleBlock(upgrade.Name,
+            $"{upgrade.Id} · {upgrade.En} · {upgrade.ClassLabel} · {Data.RaceLabel(upgrade.Race)} · 最高 {upgrade.Levels} 级",
+            tip, Data.IconFor(upgrade.Icon)));
+
+        _root.AddChild(BuildTabs(
+            ("等级", () => UpgradeLevels(upgrade)),
+            ("效果", () => UpgradeEffects(upgrade)),
+            ("说明", () => UpgradeTips(upgrade)),
+            ("图标", () => IconStrip(upgrade.Icons)),
+            ("原始数据", () => RawBlock(new Dictionary<string, Dictionary<string, string>>
+            {
+                ["UpgradeData"] = upgrade.Raw ?? new Dictionary<string, string>(),
+            }))));
+    }
+
+    static Control UpgradeLevels(UpgradeRow upgrade)
+    {
+        GridContainer grid = new() { Columns = 5 };
+        grid.AddThemeConstantOverride("h_separation", 18);
+        grid.AddThemeConstantOverride("v_separation", 6);
+
+        int[] widths = { 48, 220, 76, 76, 92 };
+        string[] headers = { "等级", "名称", "金钱", "木材", "时间" };
+        for (int i = 0; i < headers.Length; i++) grid.AddChild(CellLabel(headers[i], widths[i], 10, Ui.Faint));
+
+        for (int level = 1; level <= upgrade.Levels; level++)
+        {
+            string name = level <= upgrade.Names.Count ? upgrade.Names[level - 1] : "";
+            int gold = upgrade.GoldBase + upgrade.GoldMod * (level - 1);
+            int lumber = upgrade.LumberBase + upgrade.LumberMod * (level - 1);
+            int time = upgrade.TimeBase + upgrade.TimeMod * (level - 1);
+
+            grid.AddChild(CellLabel(level.ToString(), widths[0], 11, Ui.Gold));
+            grid.AddChild(CellLabel(string.IsNullOrEmpty(name) ? "—" : name, widths[1], 11, Ui.Dim));
+            grid.AddChild(CellLabel(gold.ToString(), widths[2], 11, Ui.Dim));
+            grid.AddChild(CellLabel(lumber.ToString(), widths[3], 11, Ui.Dim));
+            grid.AddChild(CellLabel($"{time} 秒", widths[4], 11, Ui.Dim));
+        }
+
+        return grid;
+    }
+
+    static Label CellLabel(string text, int width, int size, Color color)
+    {
+        Label label = Ui.Label(text, size, color);
+        label.CustomMinimumSize = new Vector2(width, 0);
+        label.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+        label.TooltipText = text;
+        return label;
+    }
+
+    static Control UpgradeEffects(UpgradeRow upgrade)
+    {
+        if (upgrade.Effects.Count == 0)
+        {
+            return PageParts.Empty("没有登记效果", "该升级在 UpgradeData 里 effect1..4 都是空值。");
+        }
+
+        GridContainer grid = new() { Columns = 4 };
+        grid.AddThemeConstantOverride("h_separation", 18);
+        grid.AddThemeConstantOverride("v_separation", 6);
+
+        int[] widths = { 220, 76, 80, 88 };
+        string[] headers = { "效果", "代码", "基础值", "每级增量" };
+        for (int i = 0; i < headers.Length; i++) grid.AddChild(CellLabel(headers[i], widths[i], 10, Ui.Faint));
+
+        foreach (UpgradeEffect effect in upgrade.Effects)
+        {
+            grid.AddChild(CellLabel(string.IsNullOrEmpty(effect.Label) ? effect.Code : effect.Label, widths[0], 11, Ui.Dim));
+            grid.AddChild(CellLabel(effect.Code, widths[1], 10, Ui.Faint));
+            grid.AddChild(CellLabel(effect.Base, widths[2], 11, Ui.Dim));
+            grid.AddChild(CellLabel(effect.Mod, widths[3], 11, Ui.Dim));
+        }
+
+        return grid;
+    }
+
+    static Control UpgradeTips(UpgradeRow upgrade)
+    {
+        if (upgrade.Tips.Count == 0) return PageParts.Empty("没有说明文本", "UpgradeStrings 里没有该 id 的 Ubertip。");
+
+        VBoxContainer list = Ui.VBox(8);
+        for (int i = 0; i < upgrade.Tips.Count; i++)
+        {
+            HBoxContainer row = Ui.HBox(10);
+            Label level = Ui.Label($"{(i + 1).ToString()}", 10, Ui.Faint);
+            level.CustomMinimumSize = new Vector2(18, 0);
+            row.AddChild(level);
+            Label text = Ui.Label(upgrade.Tips[i], 11, Ui.Dim, true);
+            text.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+            row.AddChild(text);
+            list.AddChild(row);
+        }
+        return list;
+    }
+
+    static Control IconStrip(List<string> icons)
+    {
+        if (icons.Count == 0) return PageParts.Empty("没有图标", "UpgradeFunc 里没有该 id 的 Art。");
+
+        HBoxContainer row = Ui.HBox(10);
+        for (int i = 0; i < icons.Count; i++)
+        {
+            VBoxContainer cell = Ui.VBox(4);
+            Texture2D texture = Data.IconFor(icons[i]);
+            cell.AddChild(texture != null ? Ui.Image(texture, 44) : Ui.Label("▲", 20, Ui.Faint));
+            cell.AddChild(Ui.Label($"{i + 1} 级", 10, Ui.Faint));
+            row.AddChild(cell);
+        }
+        return row;
+    }
+
+    Control AbilityCards(List<string> ids, Action<string> onPlay = null)
+    {
+        if (ids.Count == 0) return PageParts.Empty("没有技能", "该物品的 abilList 为空。");
+
+        GridContainer grid = new() { Columns = 4 };
+        grid.AddThemeConstantOverride("h_separation", 12);
+        grid.AddThemeConstantOverride("v_separation", 12);
+
+        foreach (string skillId in ids)
+        {
+            if (Data.AbilityById == null || !Data.AbilityById.TryGetValue(skillId, out AbilityRow ability)) continue;
+
+            PanelContainer card = Ui.Panel(Ui.Panel2, Ui.Line, 4);
+            card.MouseFilter = MouseFilterEnum.Stop;
+            card.MouseDefaultCursorShape = CursorShape.PointingHand;
+
+            HBoxContainer row = Ui.HBox(10);
+            MarginContainer pad = Ui.Margin(10, 8, 10, 8);
+            pad.MouseFilter = MouseFilterEnum.Ignore;
+            pad.AddChild(row);
+            card.AddChild(pad);
+
+            Texture2D icon = Data.IconFor(ability);
+            row.AddChild(icon != null ? Ui.Image(icon, 44) : Ui.Label("✦", 20, Ui.Faint));
+
+            VBoxContainer text = Ui.VBox(2);
+            text.AddChild(Ui.Label(ability.Name, 12, Ui.Text));
+            text.AddChild(Ui.Label($"{ability.Id} · 等级 {ability.Levels}", 10, Ui.Faint));
+            row.AddChild(text);
+
+            if (onPlay != null)
+            {
+                Button anim = Ui.ToolButton("▶ 动画", 10);
+                anim.Pressed += () => onPlay(ability.Anim);
+                row.AddChild(anim);
+            }
+
+            string target = ability.Id;
+            card.GuiInput += ev =>
+            {
+                if (ev is InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true })
+                {
+                    App.Current.Navigate("abilities", target);
+                }
+            };
+            grid.AddChild(card);
+        }
+
+        if (grid.GetChildCount() == 0)
+        {
+            return PageParts.Empty("没有命中技能", $"abilList 里的 id 在技能表里没有命中：{string.Join(",", ids)}");
+        }
+        return grid;
+    }
+
+    Control SoundList(string dir, List<string> files)
+    {
+        if (files.Count == 0) return PageParts.Empty("没有音效", "模型目录里没有 .wav 文件。");
+
+        VBoxContainer list = Ui.VBox(2);
+        foreach (string file in files)
+        {
+            string kind = SoundKindLabel.TryGetValue(Data.SoundKind(file), out string label) ? label : "其他";
+            HBoxContainer row = Ui.HBox(10);
+            Label kindLabel = Ui.Label(kind, 10, Ui.Faint);
+            kindLabel.CustomMinimumSize = new Vector2(56, 0);
+            row.AddChild(kindLabel);
+            row.AddChild(Ui.Label(file, 12, Ui.Dim));
+
+            Button play = Ui.ToolButton("▶ 试听", 10);
+            string path = string.IsNullOrEmpty(dir) ? file : $"{dir}/{file}";
+            play.Pressed += () => PlaySound(path);
+            row.AddChild(play);
+
+            MarginContainer pad = Ui.Margin(0, 3, 0, 3);
+            pad.AddChild(row);
+            list.AddChild(pad);
+        }
+        return list;
     }
 
     // ---------- 模型 ----------
@@ -836,6 +1142,61 @@ public partial class DetailPage : Page
             ("尺寸", size),
             ("路径", _id),
         }))));
+    }
+
+    // ---------- 表格 / 文本 ----------
+
+    void BuildTable()
+    {
+        _root.AddChild(BackRow("表格"));
+
+        Table table = Data.LoadTableFile(_id);
+        if (table == null || table.Columns == null)
+        {
+            _root.AddChild(PageParts.Empty("无法读取该表", _id));
+            return;
+        }
+
+        _root.AddChild(TitleBlock(Data.FileLabel(_id),
+            $"{_id} · {table.Rows.Count} 行 · {table.Columns.Length} 列", "", null));
+
+        _root.AddChild(BuildTabs(
+            ("内容", () => new TableGrid(table)),
+            ("列清单", () => ColumnList(table))));
+    }
+
+    static Control ColumnList(Table table)
+    {
+        GridContainer grid = new() { Columns = 4 };
+        grid.AddThemeConstantOverride("h_separation", 18);
+        grid.AddThemeConstantOverride("v_separation", 4);
+
+        for (int i = 0; i < table.Columns.Length; i++)
+        {
+            HBoxContainer row = Ui.HBox(8);
+            Label index = Ui.Label((i + 1).ToString(), 10, Ui.Faint);
+            index.CustomMinimumSize = new Vector2(26, 0);
+            index.HorizontalAlignment = HorizontalAlignment.Right;
+            row.AddChild(index);
+            row.AddChild(Ui.Label(table.Columns[i], 11, Ui.Dim));
+            grid.AddChild(row);
+        }
+        return grid;
+    }
+
+    void BuildText()
+    {
+        _root.AddChild(BackRow("文本"));
+
+        Dictionary<string, string> keys = Data.LoadTextFile(_id);
+        if (keys.Count == 0)
+        {
+            _root.AddChild(PageParts.Empty("无法读取该文本文件", _id));
+            return;
+        }
+
+        _root.AddChild(TitleBlock(Data.FileLabel(_id), $"{_id} · {keys.Count} 条键值", "", null));
+        _root.AddChild(BuildTabs(("内容", () => new TextViewer(keys))));
     }
 
     // ---------- 共用 ----------

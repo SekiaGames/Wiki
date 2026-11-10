@@ -76,9 +76,14 @@ public partial class OverviewPage : Page
             "units" => (Data.Units?.Count, "来自 Tables/*UnitUI.json"),
             "abilities" => (Data.Abilities?.Count, "来自 Tables/*AbilityData.json"),
             "doodads" => (Data.Doodads?.Count, "来自 Tables/*Doodads.json"),
+            "destructables" => (Data.Destructables?.Count, "来自 Tables/*DestructableData.json"),
+            "items" => (Data.Items?.Count, "来自 Tables/*ItemData.json"),
+            "upgrades" => (Data.Upgrades?.Count, "来自 Tables/*UpgradeData.json"),
             "models" => (Data.Models?.Count, "extract 内全部 .glb"),
             "sounds" => (Data.Sounds?.Count, "extract 内全部 .wav"),
             "textures" => (Data.Textures?.Count, "extract 内全部 .png"),
+            "tables" => (Data.TableFiles?.Count, "Tables/ 下全部 .json"),
+            "texts" => (Data.TextFiles?.Count, "Texts/ 下全部 .json"),
             _ => (null, "后续阶段接入"),
         };
     }

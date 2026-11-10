@@ -34,14 +34,16 @@ Wiki/
 └─ src/
    ├─ App.cs                 外壳：侧栏 / 顶栏 / 路由，另含 --shot / --inspect / --pack 调试入口
    ├─ Assets.cs              pck 挂载、文本与 json 读取、目录遍历、贴图与音效加载
-   ├─ Data.cs                表与文本合并：单位 / 技能 / 装饰物 / 媒体索引 / 材质层透明度
+   ├─ Data.cs                表与文本合并：单位 / 技能 / 装饰物 / 可破坏物 / 物品 / 升级 / 媒体索引
    ├─ Ui.cs                  配色、字体、控件工厂
    ├─ Sidebar.cs             12 个分类导航 + 计数
    ├─ Page.cs                页面基类、页头、空状态、未接入分类
    ├─ OverviewPage.cs        概览
    ├─ ListPage.cs            卡片网格 + 过滤 + 分页加载
    ├─ DetailPage.cs          详情：3D 舞台 / 动画 / 技能 / 音效 / 属性 / 原始数据
-   └─ ModelPreview.cs        SubViewport 预览：取景、拖动旋转、滚轮缩放、队伍色
+   ├─ ModelPreview.cs        SubViewport 预览：取景、拖动旋转、滚轮缩放、队伍色
+   ├─ TableGrid.cs           表格内容视图：列分组翻页 + 行分页 + tooltip 全文
+   └─ TextViewer.cs          文本内容视图：key/value 列表 + 搜索 + 分页
 ```
 
 ## 数据口径
@@ -52,6 +54,11 @@ Wiki/
 | 单位中文名 / 图标 | `Texts/*UnitStrings.json`（`<id>.Name`）、`Texts/*UnitFunc.json`（`<id>.Art`） |
 | 技能 | `Tables/UnitsAbilityData.json` + `Texts/*AbilityStrings.json` / `*AbilityFunc.json` |
 | 装饰物 | `Tables/DoodadsDoodads.json` + `Texts/UIWorldEditStrings.json`（`WorldEditStrings.<Name>`） |
+| 可破坏物 | `Tables/UnitsDestructableData.json` + `Texts/UIWorldEditGameStrings.json`（`WorldEditStrings.<Name>`） |
+| 物品 | `Tables/UnitsItemData.json` + `Texts/*ItemStrings.json`（`<id>.Name` / `.Ubertip` / `.Description`）、`*ItemFunc.json`（`<id>.Art`） |
+| 升级 | `Tables/UnitsUpgradeData.json` + `Texts/*UpgradeStrings.json`（`.Name` 与 `.Ubertip` 都是逐级列表）、`*UpgradeFunc.json`（`.Art` 逐级图标） |
+| 升级效果中文名 | `Texts/UIUnitEditorData.json` 的 `upgradeEffect.*` → `Texts/UIWorldEditStrings.json` |
+| 表格 / 文本 | 直接浏览 `Tables/*.json`、`Texts/*.json` 原始内容 |
 | 模型 / 音效 / 贴图 | 递归扫描 pck 内 `extract/` 下的 `.glb` / `.wav` / `.mp3` / `.png` |
 
 表名与文本名都按**后缀**匹配（`UnitUI.json`、`UnitStrings.json`），不写死完整文件名——Extract 侧改前缀
@@ -69,10 +76,14 @@ Wiki/
 5. **形态 / 升级快捷键只认命名约定**：`Stand` / `Stand Upgrade First` / `Stand Upgrade Second` 映射为一级 / 二级 /
    三级，「升到二级 / 三级」对应 `Birth Upgrade First` / `Birth Upgrade Second`。这些名字直接来自 MDX 序列名，
    建筑的多级几何本来就装在同一个模型里（`Buildings/Human/TownHall/TownHall.mdx` 同时含市政厅 / 要塞 / 城堡）。
-6. **粒子默认关闭**：导出的粒子发射器没有 KPEV 可见性轨道，空闲状态下会飘火星与施工粉尘；「粒子」按钮可打开，
-   按「升到二级 / 三级」会自动打开。形态按钮会同时关闭粒子并重新取景。
-7. **可破坏物 / 物品 / 升级 / 表格 / 文本** 仍是占位页。
-8. 详情页的「原始数据」只做平铺 key-value，不做 json 折叠。
+6. **粒子默认开启**：「粒子」按钮可关。形态按钮会同时关闭粒子并重新取景。
+7. **形态 / 升级按钮只出现在单位与装饰物**：可破坏物、物品、模型库的详情页不显示这排按钮（它们的 `Stand` 只是待机序列，不是建筑形态）。
+8. **可替换贴图（replaceableId）已由导出端解析，但只取默认皮肤**：`wc3.json` 每条 texture 现在带
+   `resolvedPath`（材质里写死的那张）与 `variants`（同 rid 的多套 tileset 皮肤，只有 rid 31 / 32 会有）。
+   详情页目前只显示默认皮肤；要做「按地图 tileset 换肤」读 `variants` 即可，不要从 `path` 反推——
+   `AshenTree` 目录同时是灰谷 `AshenTree`（tileset A）与费伍德 `FelwoodTree`（tileset C）。
+   剩余 4 个非队伍色白模是 `UI/Cursor/*` 的 `replaceableId=21` 层，原版即为白图，故意保持关闭（见 GODOT-ISSUES/0005已关闭）。
+9. 详情页的「原始数据」只做平铺 key-value，不做 json 折叠；表格页一次显示 8 列、40 行，用「列/行」按钮翻页。
 
 ## 调试入口
 

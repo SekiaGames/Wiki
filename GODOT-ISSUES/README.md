@@ -18,8 +18,9 @@ Wiki 只读 `Godot/extract`，**与地图文件无关**：wiki 的验收只看 c
 |---|---|---|
 | [0001](0001已关闭/ISSUE.md) | glb 骨骼层级不完整，部分模型蒙皮错位 | **已关闭** · [回复](0001已关闭/REPLY.md) [跟进](0001已关闭/FOLLOWUP.md) |
 | [0002](0002已关闭/ISSUE.md) | GEOA（geoset 显隐）没有导出 | **已关闭** · [回复](0002已关闭/REPLY.md) [跟进](0002已关闭/FOLLOWUP.md) |
-| [0003](0003/ISSUE.md) | 粒子（PRE2/PREM）与 ribbon（RIBB）未导出 | 排队中（等节点表改动落地） · [回复](0003/REPLY.md) [跟进](0003/FOLLOWUP.md) |
-| [0004](0004/ISSUE.md) | 建筑模型露出一圈施工脚手架（TownHall 最明显） | OPEN（待确认是否 GEOA 漏判） |
+| [0003](0003已关闭/ISSUE.md) | 粒子（PRE2/PREM）与 ribbon（RIBB）未导出 | **已关闭** · [回复](0003已关闭/REPLY.md) [跟进](0003已关闭/FOLLOWUP.md) |
+| [0004](0004已关闭/ISSUE.md) | 建筑模型露出一圈施工脚手架（TownHall 最明显） | **已关闭** · [回复](0004已关闭/REPLY.md) [跟进](0004已关闭/FOLLOWUP.md) |
+| [0005](0005已关闭/ISSUE.md) | 依赖 replaceableId 的贴图无路径，1401 个模型是白模 | **已关闭** · [回复](0005已关闭/REPLY.md) [跟进](0005已关闭/FOLLOWUP.md) |
 
 ## 关闭结论
 
@@ -42,11 +43,35 @@ Wiki 只读 `Godot/extract`，**与地图文件无关**：wiki 的验收只看 c
 - Godot 侧不加 `hiddenGeosets`（避免第二个真相来源）
 - 数据更正：`02_mat1.tres` 的 `layer_alpha` 是 0.75，不是 1
 
-### 0003 仍在排队
+### 0003 已关闭（2026-11-10 21:55）
 
-- 前置依赖：节点表补齐（已完成）+ 全量重导（已完成），接下来 Godot 侧动 `<Model>.fx.json`
-- 字段草案已对齐（`node` 空=挂根、`filterMode`、`rows/columns`、`priority`、`textureSlot`）
-- 验收点改到装饰物火把 / 火盆 / 喷泉 / 瀑布，不用 `#/units/hprt`
+- 三轮落地：PRE2 粒子 + LITE 灯光（`.tscn` 里的 `fx_nodeNN` / `light_nodeNN`）→ RIBB 丝带（26 条烘成 `rib_nodeNN` 的
+  `MeshInstance3D`，其余 338 条只给 `Node3D` + `war3_ribbon_*` metadata）
+- `.fx.json` 方案作废，产物直接进 `.tscn`，wiki 不需要额外格式
+- 「静止看不到丝带」成立：364 条丝带没有一条节点链带平移动画，截面重合面积为零；只有 `gravity > 0` 的 26 条有形态
+- 验收：`TorchHuman` 柱顶火苗、`NagaBirth` 底座水幕带、`Shade` 只有锚点不报错，全库 147 个 `.tscn` 带 `rib_node`
+- 留到表现层：运行时丝带渲染器（Editor / Launcher），不在导出 issue 内
+
+### 0004 已关闭（2026-11-10 21:55）
+
+- **现象不成立**：当前 `TownHall.tscn` 36 个 geoset 里 33 个 `visible = false`，可见的只有 `geoset11/13/14`；
+  旧 issue 里「只有 5 个 false」对应的是 0001 修好之前那批产物
+- 木架是 Birth 施工件，Stand 帧上 alpha 本来就是 0；`ModelBundle` 取 Stand 起始帧（61667）做快照是对的
+- 不加 `stage` 字段：`wc3.json` 的 `geosetAnimations[].alphaTrack` 已是唯一真相
+- 真实缺口另立：按 clip 的 geoset 可见性轨（Editor 播 Birth 看不到逐级长出来），wiki 单模型预览不需要
+- 验收：`TownHall` 无木架无黑幕、`Farm` 无黑幕、`Hmkg` 不回退
+
+### 0005 已关闭（2026-11-10 21:55）
+
+- 根因：`ModelBundle.TexturePng` 只认 rid 1/2，其余落空 → 材质 `use_base_texture = false` → 白模
+- 映射表取自 `MeleeV0UnitsDestructableData.json` 的 `texID` / `texFile` 两列，不是猜的：
+  `11`→Cliff、`31`→LordaeronSummerTree、`32`→AshenTree（A/C 两套）、`33`→BarrensTree、`34`→NorthTree、
+  `35`→MushroomTree、`36`→RuinsTree、`37`→OutlandMushroomTree
+- `wc3.json` 每条 texture 新增 `resolvedPath` 与 `variants`（只有 rid 31 / 32 有多套），`replaceableId` 保留
+- 修复量：`use_base_texture=false` 且非队伍色 1443 → **4**（`UI/Cursor/*` 的 rid 21，原版即白图，故意保持关闭）；
+  `missing_texture.png` 引用 0；受影响模型 1401 → 4
+- 验收：`AshenTree0` 有树皮绿叶、`CliffDoodadCave` 有岩石贴图、`Hmkg` 不回退
+- 遗留（不阻塞）：详情页只显示默认皮肤，按地图 tileset 换肤时读 `variants`
 
 ## 常用命令（仅 Godot 侧自查用）
 

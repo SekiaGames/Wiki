@@ -186,3 +186,73 @@ UV 按 `interval_first/middle` 在图集里取帧 —— 和 Godot shader 的逻
 - 如果 three.js 那边嫌 `ParticleProcessMaterial` 的参数太 Godot 味，直接读 `metadata/war3_*`
   里的原始值（`filterMode`、`headOrTail`、`tailLength`、`texture`）更方便
 - 没有 `fx_node*` 的模型就是没有粒子，不需要兜底
+
+---
+
+# 第四轮 · RIBB 丝带落地，但先说清「静止看不到」这件事
+
+- 回复时间：2026-11-10 21:35
+- 结论：**RIBB 已导出**，147 个模型都有 `rib_nodeNN`；其中 15 个模型（26 条丝带）有可见的静态形态，其余静止时本来就没有面积
+
+## 一、先摆一个反直觉的事实
+
+我扫了全库 364 条丝带：**没有任何一条的节点链（含所有祖先）带平移/旋转动画**。RIBB 的几何是「每帧在节点位置放一对上下顶点，连成带子」，节点不动 → 所有截面重合 → 面积为零。
+
+也就是说：**丝带在原版里也是靠「单位在世界里移动」把轨迹扫出来的**，单位站着不动时你看不到丝带 —— 这不是导出丢数据，是原版行为。所以「静止预览必须有飘带」这个期望，对 338/364 条丝带不成立。
+
+真正静止也有形态的是 **26 条带重力的丝带**（`gravity > 0`，奈幽/纳迦建筑出生时的水幕那一类）：顶点点生成后按 `0.5·g·t²` 下落，自然拉出竖直带子。
+
+## 二、这轮做了什么
+
+### 1. 有静态形态的：烘焙成真网格（26 条 / 15 个模型）
+
+```
+NagaBirth.tscn
+├── Model                    (glb)
+├── rib_node26               MeshInstance3D
+│   ├── mesh = NagaBirth.rib0.mesh.tres      (ArrayMesh，16 段三角带)
+│   └── material_override = NagaBirth.rib0.tres
+└── rib_node27               MeshInstance3D
+```
+
+- 几何：沿 `lifeSpan` 取 16 个截面，每个截面是 `pivot + Z·heightAbove` 到 `pivot - Z·heightBelow` 的两点，按 `0.5·gravity·age²` 在 MDX 的 Z 轴下落，再换算到 Godot
+- 节点链用 `KGTR` / `KGRT` / `KGSC` 逐级求值（`T(-pivot)·S·R·T(pivot+translation)`，和客户端一致），所以以后哪条丝带挂了会动的骨骼也能正确烘焙
+- 顶点色 = 白，UV 的 u 沿寿命（老的 u→0），v 跨高度
+- 贴图取材质的 `filterMode`：3/4 走 `war3_ribbon_add.gdshader`（加色），其余走 `war3_ribbon.gdshader`（混合）
+- 网格是**模型空间烘焙**：跟着单位平移，但不随骨骼重算形状（静态快照，和粒子那套「按待机帧静态化」同一类偏差）
+
+### 2. 静止无形态的：只交数据和锚点（338 条）
+
+```
+[node name="rib_node48" type="Node3D" parent="Model"]
+metadata/war3_ribbon_height_above = 22
+metadata/war3_ribbon_height_below = 22
+metadata/war3_ribbon_alpha = 1
+metadata/war3_ribbon_life_span = 0.6
+metadata/war3_ribbon_emission_rate = 30
+metadata/war3_ribbon_gravity = 0
+metadata/war3_ribbon_filter_mode = 5
+metadata/war3_ribbon_rows = 1
+metadata/war3_ribbon_columns = 1
+metadata/war3_ribbon_texture = "Textures/Shade.blp"
+```
+
+Wiki / Editor 想让它动起来，就按这组参数在运行时生成拖尾：每帧按 `emissionRate` 在节点位置放一对顶点（上 `+heightAbove`、下 `-heightBelow`），按寿命淘汰，`gravity` 累加下落。**协议就这一份，不需要 `.fx.json`。**
+
+## 三、实测
+
+- `Buildings/Naga/ShrineOfAshjara/NagaBirth.glb`：底座外圈出现垂落的水幕带 ✅
+- `Units/Undead/Shade.glb`：`rib_node48/49` 是 Node3D + metadata，静止不显示（预期）
+- 全库：147 个 `.tscn` 有 `rib_node`，26 个 `.ribN.mesh.tres`，与 `gravity > 0` 的丝带数一致
+
+## 四、剩下的事
+
+1. 运行时丝带渲染器（按上面的 metadata 生成拖尾）—— 属于 Editor/Launcher 的表现层，不在这条导出 issue 里
+2. 丝带的 `KRAL` / `KRCO` / `KRTX` 目前只取待机帧静态值，动画轨道没导出（和 `KP2E` 那些同一个取舍）
+3. `filterMode` 5/6 原版是纯乘法混合，我按混合处理（否则整条带子会变黑），这一条是已知偏差
+
+## 五、验收清单
+
+1. 装饰物里的火把 / 火盆 / 喷泉：粒子在（上一轮已达成），丝带不涉及
+2. 纳迦建筑出生动画的模型能看到水幕带 —— 已达成
+3. 不带粒子和丝带的模型不受影响：没有 `fx_node*` 也没有 `rib_node*` —— 已达成

@@ -31,7 +31,7 @@ public static class Catalog
         return All.FirstOrDefault(item => item.Id == id) ?? All[0];
     }
 
-    public static readonly string[] Pending = { "destructables", "items", "upgrades", "tables", "texts" };
+    public static readonly string[] Pending = Array.Empty<string>();
 
     public static bool IsPending(string id) => Pending.Contains(id);
 }
@@ -193,9 +193,14 @@ public partial class Sidebar : PanelContainer
         SetCount("units", Data.Units?.Count);
         SetCount("abilities", Data.Abilities?.Count);
         SetCount("doodads", Data.Doodads?.Count);
+        SetCount("destructables", Data.Destructables?.Count);
+        SetCount("items", Data.Items?.Count);
+        SetCount("upgrades", Data.Upgrades?.Count);
         SetCount("models", Data.Models?.Count);
         SetCount("sounds", Data.Sounds?.Count);
         SetCount("textures", Data.Textures?.Count);
+        SetCount("tables", Data.TableFiles?.Count);
+        SetCount("texts", Data.TextFiles?.Count);
     }
 
     void SetCount(string id, int? count)

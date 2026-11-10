@@ -40,6 +40,43 @@ public sealed class DoodadRow
     public string Id, Name, En, Category, Dir, Base, File;
     public int Variants;
     public float Scale;
+    public Dictionary<string, string> Raw;
+}
+
+public sealed class DestructableRow
+{
+    public string Id, Name, En, Category, CategoryLabel, Target, Armor, File, Dir, Base, DeathSound, Tilesets;
+    public int Variants, Hp, Gold, Lumber, BuildTime, RepairTime;
+    public float ScaleMin, ScaleMax, Radius, FogRadius;
+    public Dictionary<string, string> Raw;
+}
+
+public sealed class ItemRow
+{
+    public string Id, Name, En, Klass, Icon, File, Dir, Base, Tip, Description;
+    public int Level, Gold, Lumber, Hp, StockMax, StockRegen, Uses, Prio;
+    public bool Powerup, Perishable, Sellable, Pawnable, Droppable, Usable;
+    public List<string> Abilities = new();
+    public Dictionary<string, string> Raw;
+}
+
+public sealed class UpgradeEffect
+{
+    public string Code, Label, Base, Mod;
+}
+
+public sealed class UpgradeRow
+{
+    public string Id, En, Klass, ClassLabel, Race;
+    public int Levels, GoldBase, GoldMod, LumberBase, LumberMod, TimeBase, TimeMod;
+    public List<string> Names = new();
+    public List<string> Icons = new();
+    public List<string> Tips = new();
+    public List<UpgradeEffect> Effects = new();
+    public Dictionary<string, string> Raw;
+
+    public string Name => Names.Count > 0 ? Names[0] : Id;
+    public string Icon => Icons.Count > 0 ? Icons[0] : "";
 }
 
 public sealed class MediaRow
@@ -74,6 +111,13 @@ public static class Data
     public static List<DoodadRow> Doodads { get; private set; }
     public static Dictionary<string, DoodadRow> DoodadById { get; private set; }
 
+    public static List<DestructableRow> Destructables { get; private set; }
+    public static Dictionary<string, DestructableRow> DestructableById { get; private set; }
+    public static List<ItemRow> Items { get; private set; }
+    public static Dictionary<string, ItemRow> ItemById { get; private set; }
+    public static List<UpgradeRow> Upgrades { get; private set; }
+    public static Dictionary<string, UpgradeRow> UpgradeById { get; private set; }
+
     public static List<MediaRow> Models { get; private set; }
     public static List<MediaRow> Sounds { get; private set; }
     public static List<MediaRow> Textures { get; private set; }
@@ -96,6 +140,32 @@ public static class Data
         LoadUnits();
         LoadAbilities();
         LoadDoodads();
+        LoadDestructables();
+        LoadItems();
+        LoadUpgrades();
+    }
+
+    public static Table LoadTableFile(string relative)
+    {
+        return string.IsNullOrEmpty(relative) ? null : ParseTable(relative);
+    }
+
+    public static Dictionary<string, string> LoadTextFile(string relative)
+    {
+        Dictionary<string, string> result = new();
+        if (string.IsNullOrEmpty(relative)) return result;
+
+        Variant payload = Assets.ReadJson(relative);
+        if (payload.VariantType != Variant.Type.Dictionary) return result;
+
+        Godot.Collections.Dictionary root = payload.AsGodotDictionary();
+        if (!root.ContainsKey("keys")) return result;
+
+        foreach (KeyValuePair<Variant, Variant> pair in root["keys"].AsGodotDictionary())
+        {
+            result[pair.Key.AsString()] = pair.Value.AsString();
+        }
+        return result;
     }
 
     public static void WarmMedia()
@@ -122,6 +192,29 @@ public static class Data
     {
         int slash = path.LastIndexOf('/');
         return slash < 0 ? "" : path[..slash];
+    }
+
+    public static string ModelName(string file)
+    {
+        if (string.IsNullOrEmpty(file)) return "";
+        string name = Base(file.Replace('\\', '/'));
+        int dot = name.LastIndexOf('.');
+        return dot > 0 ? name[..dot] : name;
+    }
+
+    public static string FileLabel(string path)
+    {
+        string name = Base(path ?? "");
+        return name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? name[..^5] : name;
+    }
+
+    public static string SourceLabel(string path)
+    {
+        string name = Base(path ?? "");
+        if (name.StartsWith("CustomV1", StringComparison.OrdinalIgnoreCase)) return "自定义 V1";
+        if (name.StartsWith("CustomV0", StringComparison.OrdinalIgnoreCase)) return "自定义 V0";
+        if (name.StartsWith("MeleeV0", StringComparison.OrdinalIgnoreCase)) return "对战 V0";
+        return "基础";
     }
 
     public static Table Table(string suffix)
@@ -383,11 +476,255 @@ public static class Data
                 File = file,
                 Variants = Math.Max(1, Int(row.GetValueOrDefault("numVar", "1"))),
                 Scale = Float(row.GetValueOrDefault("defScale", "1")),
+                Raw = row,
             });
         }
 
         Doodads = rows;
         DoodadById = rows.ToDictionary(row => row.Id, row => row);
+    }
+
+    static List<string> CommaList(string text)
+    {
+        List<string> parts = new();
+        if (string.IsNullOrEmpty(text)) return parts;
+
+        foreach (string part in text.Split(','))
+        {
+            string item = Clean(part);
+            if (item.Length > 0 && item != "_" && item != "-") parts.Add(item);
+        }
+        return parts;
+    }
+
+    static List<string> LevelTextList(string text)
+    {
+        List<string> parts = new();
+        if (string.IsNullOrEmpty(text)) return parts;
+
+        foreach (string part in text.Replace("\",\"", "\u0001").Split('\u0001'))
+        {
+            string item = Clean(part);
+            if (item.Length > 0 && item != "_" && item != "-") parts.Add(item);
+        }
+        return parts;
+    }
+
+    static void LoadDestructables()
+    {
+        Table table = Table("DestructableData.json");
+        if (table == null) return;
+
+        Dictionary<string, string> world = Texts("WorldEditGameStrings.json");
+
+        List<DestructableRow> rows = new();
+        foreach (string[] raw in table.Rows)
+        {
+            Dictionary<string, string> row = table.Dict(raw);
+            string id = row.GetValueOrDefault("DestructableID", "");
+            if (string.IsNullOrEmpty(id)) continue;
+
+            string file = row.GetValueOrDefault("file", "").Replace('\\', '/');
+            if (string.IsNullOrEmpty(file)) continue;
+
+            string key = "WorldEditStrings." + row.GetValueOrDefault("Name", "");
+            string localized = world.TryGetValue(key, out string name) ? Clean(name) : "";
+            string category = row.GetValueOrDefault("category", "");
+
+            rows.Add(new DestructableRow
+            {
+                Id = id,
+                Name = string.IsNullOrEmpty(localized) ? row.GetValueOrDefault("comment", Base(file)) : localized,
+                En = Clean(row.GetValueOrDefault("comment", Base(file))),
+                Category = category,
+                CategoryLabel = category switch
+                {
+                    "D" => "可破坏物",
+                    "B" => "桥梁",
+                    "P" => "阻挡物",
+                    _ => category,
+                },
+                Target = row.GetValueOrDefault("targType", ""),
+                Armor = row.GetValueOrDefault("armor", ""),
+                File = file,
+                Dir = Dir(file),
+                Base = ModelName(file),
+                DeathSound = row.GetValueOrDefault("deathSnd", ""),
+                Tilesets = row.GetValueOrDefault("tilesets", ""),
+                Variants = Math.Max(1, Int(row.GetValueOrDefault("numVar", "1"))),
+                Hp = Int(row.GetValueOrDefault("HP", "")),
+                Gold = Int(row.GetValueOrDefault("goldRep", "")),
+                Lumber = Int(row.GetValueOrDefault("lumberRep", "")),
+                BuildTime = Int(row.GetValueOrDefault("buildTime", "")),
+                RepairTime = Int(row.GetValueOrDefault("repairTime", "")),
+                ScaleMin = Float(row.GetValueOrDefault("minScale", "1")),
+                ScaleMax = Float(row.GetValueOrDefault("maxScale", "1")),
+                Radius = Float(row.GetValueOrDefault("radius", "")),
+                FogRadius = Float(row.GetValueOrDefault("fogRadius", "")),
+                Raw = row,
+            });
+        }
+
+        Destructables = rows;
+        DestructableById = rows.GroupBy(row => row.Id).ToDictionary(group => group.Key, group => group.First());
+    }
+
+    static void LoadItems()
+    {
+        Table table = Table("ItemData.json");
+        if (table == null) return;
+
+        Dictionary<string, string> strings = Texts("ItemStrings.json");
+        Dictionary<string, string> funcs = Texts("ItemFunc.json");
+
+        List<ItemRow> rows = new();
+        foreach (string[] raw in table.Rows)
+        {
+            Dictionary<string, string> row = table.Dict(raw);
+            string id = row.GetValueOrDefault("itemID", "");
+            if (string.IsNullOrEmpty(id)) continue;
+
+            string file = row.GetValueOrDefault("file", "").Replace('\\', '/');
+            string icon = funcs.TryGetValue(id + ".Art", out string art) ? art : "";
+
+            ItemRow item = new()
+            {
+                Id = id,
+                Name = Clean(strings.TryGetValue(id + ".Name", out string name) ? name : row.GetValueOrDefault("comment", id)),
+                En = Clean(row.GetValueOrDefault("comment", id)),
+                Klass = row.GetValueOrDefault("class", ""),
+                Icon = icon,
+                File = file,
+                Dir = Dir(file),
+                Base = ModelName(file),
+                Tip = Clean(strings.TryGetValue(id + ".Ubertip", out string tip) ? tip : ""),
+                Description = Clean(strings.TryGetValue(id + ".Description", out string desc) ? desc : ""),
+                Level = Int(row.GetValueOrDefault("Level", "")),
+                Gold = Int(row.GetValueOrDefault("goldcost", "")),
+                Lumber = Int(row.GetValueOrDefault("lumbercost", "")),
+                Hp = Int(row.GetValueOrDefault("HP", "")),
+                StockMax = Int(row.GetValueOrDefault("stockMax", "")),
+                StockRegen = Int(row.GetValueOrDefault("stockRegen", "")),
+                Uses = Int(row.GetValueOrDefault("uses", "")),
+                Prio = Int(row.GetValueOrDefault("prio", "")),
+                Powerup = row.GetValueOrDefault("powerup", "") == "1",
+                Perishable = row.GetValueOrDefault("perishable", "") == "1",
+                Sellable = row.GetValueOrDefault("sellable", "") == "1",
+                Pawnable = row.GetValueOrDefault("pawnable", "") == "1",
+                Droppable = row.GetValueOrDefault("droppable", "") == "1",
+                Usable = row.GetValueOrDefault("usable", "") == "1",
+                Abilities = Split(row.GetValueOrDefault("abilList", "")),
+                Raw = row,
+            };
+
+            rows.Add(item);
+        }
+
+        Items = rows;
+        ItemById = rows.GroupBy(row => row.Id).ToDictionary(group => group.Key, group => group.First());
+    }
+
+    static Dictionary<string, string> _effectLabels;
+
+    static Dictionary<string, string> EffectLabels
+    {
+        get
+        {
+            if (_effectLabels != null) return _effectLabels;
+
+            Dictionary<string, string> labels = new();
+            Dictionary<string, string> editor = Texts("UnitEditorData.json");
+            Dictionary<string, string> world = Texts("WorldEditStrings.json");
+
+            foreach (KeyValuePair<string, string> pair in editor)
+            {
+                if (!pair.Key.StartsWith("upgradeEffect.", StringComparison.OrdinalIgnoreCase)) continue;
+
+                string[] parts = pair.Value.Split(',');
+                if (parts.Length < 2) continue;
+
+                string code = parts[0].Trim();
+                string token = parts[1].Trim();
+                if (code.Length == 0) continue;
+                labels[code] = world.TryGetValue("WorldEditStrings." + token, out string text) ? Clean(text) : token;
+            }
+
+            _effectLabels = labels;
+            return _effectLabels;
+        }
+    }
+
+    public static string EffectLabel(string code)
+    {
+        if (string.IsNullOrEmpty(code) || code == "_" || code == "-") return "";
+        return EffectLabels.TryGetValue(code, out string label) ? label : code;
+    }
+
+    static void LoadUpgrades()
+    {
+        Table table = Table("UpgradeData.json");
+        if (table == null) return;
+
+        Dictionary<string, string> strings = Texts("UpgradeStrings.json");
+        Dictionary<string, string> funcs = Texts("UpgradeFunc.json");
+
+        List<UpgradeRow> rows = new();
+        foreach (string[] raw in table.Rows)
+        {
+            Dictionary<string, string> row = table.Dict(raw);
+            string id = row.GetValueOrDefault("upgradeid", "");
+            if (string.IsNullOrEmpty(id)) continue;
+
+            string klass = row.GetValueOrDefault("class", "");
+
+            UpgradeRow upgrade = new()
+            {
+                Id = id,
+                En = Clean(row.GetValueOrDefault("comments", id)),
+                Klass = klass,
+                ClassLabel = klass switch
+                {
+                    "melee" => "近战",
+                    "ranged" => "远程",
+                    "armor" => "护甲",
+                    "caster" => "施法",
+                    "_" => "通用",
+                    _ => klass,
+                },
+                Race = row.GetValueOrDefault("race", ""),
+                Levels = Math.Max(1, Int(row.GetValueOrDefault("maxlevel", "1"))),
+                GoldBase = Int(row.GetValueOrDefault("goldbase", "")),
+                GoldMod = Int(row.GetValueOrDefault("goldmod", "")),
+                LumberBase = Int(row.GetValueOrDefault("lumberbase", "")),
+                LumberMod = Int(row.GetValueOrDefault("lumbermod", "")),
+                TimeBase = Int(row.GetValueOrDefault("timebase", "")),
+                TimeMod = Int(row.GetValueOrDefault("timemod", "")),
+                Raw = row,
+            };
+
+            upgrade.Names = CommaList(strings.TryGetValue(id + ".Name", out string name) ? name : upgrade.En);
+            upgrade.Icons = CommaList(funcs.TryGetValue(id + ".Art", out string art) ? art : "");
+            upgrade.Tips = LevelTextList(strings.TryGetValue(id + ".Ubertip", out string tip) ? tip : "");
+
+            for (int slot = 1; slot <= 4; slot++)
+            {
+                string code = row.GetValueOrDefault($"effect{slot}", "");
+                if (string.IsNullOrEmpty(code) || code == "_" || code == "-") continue;
+
+                upgrade.Effects.Add(new UpgradeEffect
+                {
+                    Code = code,
+                    Label = EffectLabel(code),
+                    Base = row.GetValueOrDefault($"base{slot}", ""),
+                    Mod = row.GetValueOrDefault($"mod{slot}", ""),
+                });
+            }
+
+            rows.Add(upgrade);
+        }
+
+        Upgrades = rows;
+        UpgradeById = rows.GroupBy(row => row.Id).ToDictionary(group => group.Key, group => group.First());
     }
 
     static List<MediaRow> BuildMedia(string extension)
@@ -567,6 +904,21 @@ public static class Data
         "undead" => "不死",
         "nightelf" => "暗夜",
         "neutral" => "中立",
+        "naga" => "娜迦",
+        "demon" => "恶魔",
+        "unknown" => "未知",
         _ => race,
+    };
+
+    public static string ItemClassLabel(string klass) => klass switch
+    {
+        "Permanent" => "永久",
+        "Charged" => "充能",
+        "PowerUp" => "强化",
+        "Purchasable" => "可购买",
+        "Artifact" => "神器",
+        "Campaign" => "战役",
+        "Miscellaneous" => "杂项",
+        _ => klass,
     };
 }

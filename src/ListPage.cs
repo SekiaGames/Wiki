@@ -28,6 +28,9 @@ public partial class ListPage : Page
     string _race = "all";
     string _klass = "all";
     string _doodadCategory = "all";
+    string _destructableCategory = "all";
+    string _itemClass = "all";
+    string _upgradeRace = "all";
     string _family = "all";
     int _limit = PageSize;
 
@@ -97,6 +100,32 @@ public partial class ListPage : Page
             AddChip("水面", "W", "doodad");
             AddChip("悬崖", "C", "doodad");
             AddChip("特殊", "Z", "doodad");
+        }
+
+        if (_category == "destructables")
+        {
+            AddChip("全部", "all", "destructable");
+            AddChip("可破坏物", "D", "destructable");
+            AddChip("桥梁", "B", "destructable");
+            AddChip("阻挡物", "P", "destructable");
+        }
+
+        if (_category == "items")
+        {
+            AddChip("全部", "all", "itemClass");
+            foreach (string klass in new[] { "Permanent", "Charged", "PowerUp", "Purchasable", "Artifact", "Campaign", "Miscellaneous" })
+            {
+                AddChip(Data.ItemClassLabel(klass), klass, "itemClass");
+            }
+        }
+
+        if (_category == "upgrades")
+        {
+            AddChip("全部", "all", "upgradeRace");
+            foreach (string race in new[] { "human", "orc", "undead", "nightelf", "neutral", "naga", "demon" })
+            {
+                AddChip(Data.RaceLabel(race), race, "upgradeRace");
+            }
         }
 
         if (_category is "models" or "sounds" or "textures")
@@ -182,6 +211,9 @@ public partial class ListPage : Page
         {
             "race" => _race == value,
             "doodad" => _doodadCategory == value,
+            "destructable" => _destructableCategory == value,
+            "itemClass" => _itemClass == value,
+            "upgradeRace" => _upgradeRace == value,
             "family" => _family == value,
             _ => false,
         };
@@ -193,6 +225,9 @@ public partial class ListPage : Page
             {
                 case "race": _race = value; break;
                 case "doodad": _doodadCategory = value; break;
+                case "destructable": _destructableCategory = value; break;
+                case "itemClass": _itemClass = value; break;
+                case "upgradeRace": _upgradeRace = value; break;
                 case "family": _family = value; break;
             }
 
@@ -287,6 +322,89 @@ public partial class ListPage : Page
                 }
                 break;
 
+            case "destructables":
+                foreach (DestructableRow destructable in Data.Destructables ?? new List<DestructableRow>())
+                {
+                    _all.Add(new ListItem
+                    {
+                        Id = destructable.Id,
+                        Title = destructable.Name,
+                        Meta = $"{destructable.Id} · {destructable.CategoryLabel} · {destructable.Target}",
+                        Glyph = "▣",
+                        Stats =
+                        {
+                            ("生命", destructable.Hp.ToString()),
+                            ("护甲", destructable.Armor),
+                            ("变体", destructable.Variants.ToString()),
+                        },
+                    });
+                }
+                break;
+
+            case "items":
+                foreach (ItemRow item in Data.Items ?? new List<ItemRow>())
+                {
+                    _all.Add(new ListItem
+                    {
+                        Id = item.Id,
+                        Title = item.Name,
+                        Meta = $"{item.Id} · {Data.ItemClassLabel(item.Klass)} · 等级 {item.Level}",
+                        IconPath = item.Icon,
+                        Glyph = "◇",
+                        Stats =
+                        {
+                            ("金", item.Gold.ToString()),
+                            ("生命", item.Hp.ToString()),
+                        },
+                    });
+                }
+                break;
+
+            case "upgrades":
+                foreach (UpgradeRow upgrade in Data.Upgrades ?? new List<UpgradeRow>())
+                {
+                    _all.Add(new ListItem
+                    {
+                        Id = upgrade.Id,
+                        Title = upgrade.Name,
+                        Meta = $"{upgrade.Id} · {upgrade.ClassLabel} · {Data.RaceLabel(upgrade.Race)}",
+                        IconPath = upgrade.Icon,
+                        Glyph = "▲",
+                        Stats =
+                        {
+                            ("等级", upgrade.Levels.ToString()),
+                            ("金", upgrade.GoldBase.ToString()),
+                        },
+                    });
+                }
+                break;
+
+            case "tables":
+                foreach (string path in Data.TableFiles ?? new List<string>())
+                {
+                    _all.Add(new ListItem
+                    {
+                        Id = path,
+                        Title = Data.FileLabel(path),
+                        Meta = $"{Data.SourceLabel(path)} · {path}",
+                        Glyph = "▦",
+                    });
+                }
+                break;
+
+            case "texts":
+                foreach (string path in Data.TextFiles ?? new List<string>())
+                {
+                    _all.Add(new ListItem
+                    {
+                        Id = path,
+                        Title = Data.FileLabel(path),
+                        Meta = $"{Data.SourceLabel(path)} · {path}",
+                        Glyph = "≡",
+                    });
+                }
+                break;
+
             case "models":
                 foreach (MediaRow row in Data.Models ?? new List<MediaRow>())
                 {
@@ -355,6 +473,21 @@ public partial class ListPage : Page
         if (_category == "doodads" && _doodadCategory != "all")
         {
             items = items.Where(item => Data.DoodadById[item.Id].Category == _doodadCategory);
+        }
+
+        if (_category == "destructables" && _destructableCategory != "all")
+        {
+            items = items.Where(item => Data.DestructableById[item.Id].Category == _destructableCategory);
+        }
+
+        if (_category == "items" && _itemClass != "all")
+        {
+            items = items.Where(item => Data.ItemById[item.Id].Klass == _itemClass);
+        }
+
+        if (_category == "upgrades" && _upgradeRace != "all")
+        {
+            items = items.Where(item => Data.UpgradeById[item.Id].Race == _upgradeRace);
         }
 
         if (_category is "models" or "sounds" or "textures" && _family != "all")
