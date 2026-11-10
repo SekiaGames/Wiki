@@ -303,7 +303,7 @@ public partial class ModelPreview : SubViewportContainer
             string shape = process != null ? $"{process.EmissionShape}/{process.EmissionBoxExtents}" : "-";
             GD.Print($"[particles] {gpu.Name} visible={gpu.Visible} emitting={gpu.Emitting} "
                 + $"amount={gpu.Amount} ratio={gpu.AmountRatio} life={gpu.Lifetime} "
-                + $"scale={scaleStart}..{scaleEnd} shape={shape} mat={material != null}");
+                + $"scale={scaleStart}..{scaleEnd} shape={shape} mat={material?.ResourcePath}");
         }
     }
 
