@@ -309,7 +309,7 @@ public partial class ModelPreview : SubViewportContainer
 
         foreach (Node node in Walk(_model))
         {
-            if (node is GpuParticles3D gpu) gpu.Visible = ParticlesEnabled;
+            if (node is GpuParticles3D gpu) gpu.AmountRatio = ParticlesEnabled ? 1f : 0f;
             else if (node is CpuParticles3D cpu) cpu.Emitting = ParticlesEnabled;
         }
     }
