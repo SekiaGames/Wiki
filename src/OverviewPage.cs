@@ -93,7 +93,7 @@ public partial class OverviewPage : Page
 
         box.AddChild(Ui.Label("数据源", 11, Ui.Dim));
         box.AddChild(Kv("extract.pck", Assets.PackMounted ? Assets.PckPath : "未挂载"));
-        box.AddChild(Kv("资源目录", Assets.DiskRoot));
+        box.AddChild(Kv("资源根", "res://extract"));
         box.AddChild(Kv("表格", Data.TableFiles == null ? "—" : $"{Data.TableFiles.Count} 个 json"));
         box.AddChild(Kv("文本", Data.TextFiles == null ? "—" : $"{Data.TextFiles.Count} 个 json"));
         return panel;

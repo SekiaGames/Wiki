@@ -184,7 +184,8 @@ public partial class App : Control
         if (!string.IsNullOrEmpty(clip) && _page is DetailPage detail)
         {
             detail.ApplyClip(clip, seek);
-            await ToSignal(GetTree().CreateTimer(0.6), SceneTreeTimer.SignalName.Timeout);
+            if (OS.HasEnvironment("WIKI_DEBUG_PARTICLES")) detail.DumpParticles();
+            await ToSignal(GetTree().CreateTimer(2.0), SceneTreeTimer.SignalName.Timeout);
         }
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
 

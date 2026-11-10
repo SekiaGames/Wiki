@@ -1,7 +1,7 @@
 # War3 Asset Wiki（Godot 版）
 
-只读资源预览器。数据源是仓库根目录的 `extract.pck`（模型 / 材质 / 动画 / 音效 / 贴图）和 `Extract/extract`
-（表与文本）。不写入、不复制、不生成索引。
+只读资源预览器。唯一数据源是仓库根目录的 `extract.pck`（模型 / 材质 / 动画 / 音效 / 贴图 / 表 / 文本）。
+不依赖 `Extract/` 工程目录，不写入、不复制、不生成索引。
 
 ## 运行
 
@@ -11,15 +11,19 @@ macOS 用 `GODOT_BIN` 指定 Godot 路径，默认找 `~/Applications/Godot_mono
 
 ## 资源来源
 
-全部资源来自 `../extract.pck`，本工程不自带任何资源副本：
+全部资源来自 `../extract.pck`，本工程不自带任何资源副本，也**不读 `Extract/` 目录**：
 
 - `.tscn` 引用的是 `res://extract/.../X.glb`、`X.mat0.tres`，这些在 pck 里是**已导入的二进制**（`.scn` / `.ctex`）
 - `res://assets/shaders/*.gdshader` 与 `res://assets/fallback/missing_texture.png` 也在 pck 里
+- `Tables` / `Texts` 的 `.json` 在 pck 里是原始文件，`FileAccess` 直接读取
 
-启动时 `ProjectSettings.LoadResourcePack("../extract.pck")` 挂载；表与文本为了读到原文，直接走磁盘
-`../Extract/extract`。pck 的导出预设 `Extract/export_presets.cfg` 必须带
-`include_filter="extract/*,assets/*"`，只写 `extract/*` 会让材质引用的 shader 与 fallback 贴图缺席，
-表现为 `Cannot load shader`、以及带粒子模型的 fx 子场景连坐加载失败。
+启动时 `ProjectSettings.LoadResourcePack("../extract.pck")` 挂载。目录枚举直接遍历 pck 内的
+`res://extract`（`DirAccess` 可列 pck 目录），并把导出的 `.import` / `.remap` 存根还原成逻辑文件名
+（`X.glb.import` → `X.glb`、`X.tscn.remap` → `X.tscn`），扩展名匹配忽略大小写。
+因此只要 `extract.pck` 在旁边，`Extract/` 目录是否存在都不影响运行。
+
+pck 的导出预设 `Extract/export_presets.cfg` 必须带 `include_filter="extract/*,assets/*"`，只写 `extract/*`
+会让材质引用的 shader 与 fallback 贴图缺席，表现为 `Cannot load shader`、以及带粒子模型的 fx 子场景连坐加载失败。
 
 ## 结构
 
@@ -48,7 +52,7 @@ Wiki/
 | 单位中文名 / 图标 | `Texts/*UnitStrings.json`（`<id>.Name`）、`Texts/*UnitFunc.json`（`<id>.Art`） |
 | 技能 | `Tables/UnitsAbilityData.json` + `Texts/*AbilityStrings.json` / `*AbilityFunc.json` |
 | 装饰物 | `Tables/DoodadsDoodads.json` + `Texts/UIWorldEditStrings.json`（`WorldEditStrings.<Name>`） |
-| 模型 / 音效 / 贴图 | 递归扫描 `Extract/extract` 下的 `.glb` / `.wav` / `.png` |
+| 模型 / 音效 / 贴图 | 递归扫描 pck 内 `extract/` 下的 `.glb` / `.wav` / `.mp3` / `.png` |
 
 表名与文本名都按**后缀**匹配（`UnitUI.json`、`UnitStrings.json`），不写死完整文件名——Extract 侧改前缀
 （`MeleeV0` / `CustomV0` / `CustomV1`）时不会失效。文本合并顺序：无前缀 → `Melee` → `CustomV1` → `CustomV0`。

@@ -289,6 +289,24 @@ public partial class ModelPreview : SubViewportContainer
 
     public float AnimationPosition => _player == null ? 0f : (float)_player.CurrentAnimationPosition;
 
+    public void DumpParticles()
+    {
+        if (_model == null) return;
+        GD.Print($"[particles] scene={ScenePath} enabled={ParticlesEnabled}");
+        foreach (Node node in Walk(_model))
+        {
+            if (node is not GpuParticles3D gpu) continue;
+            ParticleProcessMaterial process = gpu.ProcessMaterial as ParticleProcessMaterial;
+            ShaderMaterial material = gpu.MaterialOverride as ShaderMaterial;
+            float scaleStart = material != null ? (float)material.GetShaderParameter("scale_start") : -1f;
+            float scaleEnd = material != null ? (float)material.GetShaderParameter("scale_end") : -1f;
+            string shape = process != null ? $"{process.EmissionShape}/{process.EmissionBoxExtents}" : "-";
+            GD.Print($"[particles] {gpu.Name} visible={gpu.Visible} emitting={gpu.Emitting} "
+                + $"amount={gpu.Amount} ratio={gpu.AmountRatio} life={gpu.Lifetime} "
+                + $"scale={scaleStart}..{scaleEnd} shape={shape} mat={material != null}");
+        }
+    }
+
     public void Seek(float seconds)
     {
         if (_player == null) return;

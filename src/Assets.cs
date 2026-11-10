@@ -1,10 +1,10 @@
 using Godot;
+using System;
 using System.Collections.Generic;
 
 public static class Assets
 {
     public static string ProjectDir { get; private set; }
-    public static string DiskRoot { get; private set; }
     public static string PckPath { get; private set; }
     public static bool PackMounted { get; private set; }
 
@@ -13,7 +13,6 @@ public static class Assets
     public static void Init()
     {
         ProjectDir = ProjectSettings.GlobalizePath("res://").TrimEnd('/');
-        DiskRoot = ProjectDir + "/../Extract/extract";
         PckPath = ProjectDir + "/../extract.pck";
         PackMounted = false;
 
@@ -28,11 +27,6 @@ public static class Assets
         return "res://extract/" + relative.Replace("\\", "/").TrimStart('/');
     }
 
-    public static string DiskPath(string relative)
-    {
-        return DiskRoot + "/" + relative.Replace("\\", "/").TrimStart('/');
-    }
-
     public static bool ResourceExists(string relative)
     {
         return ResourceLoader.Exists(ResPath(relative));
@@ -40,20 +34,10 @@ public static class Assets
 
     public static string ReadText(string relative)
     {
-        if (PackMounted)
-        {
-            string packed = ResPath(relative);
-            if (FileAccess.FileExists(packed))
-            {
-                using FileAccess file = FileAccess.Open(packed, FileAccess.ModeFlags.Read);
-                if (file != null) return file.GetAsText();
-            }
-        }
-
-        string disk = DiskPath(relative);
-        if (!FileAccess.FileExists(disk)) return null;
-        using FileAccess fallback = FileAccess.Open(disk, FileAccess.ModeFlags.Read);
-        return fallback?.GetAsText();
+        string packed = ResPath(relative);
+        if (!FileAccess.FileExists(packed)) return null;
+        using FileAccess file = FileAccess.Open(packed, FileAccess.ModeFlags.Read);
+        return file?.GetAsText();
     }
 
     public static Variant ReadJson(string relative)
@@ -68,13 +52,28 @@ public static class Assets
         return parsed;
     }
 
+    public static Variant ReadJsonRes(string resPath)
+    {
+        if (JsonCache.TryGetValue(resPath, out Variant cached)) return cached;
+
+        if (!FileAccess.FileExists(resPath)) return default;
+        using FileAccess file = FileAccess.Open(resPath, FileAccess.ModeFlags.Read);
+        if (file == null) return default;
+
+        Variant parsed = Json.ParseString(file.GetAsText());
+        JsonCache[resPath] = parsed;
+        return parsed;
+    }
+
     public static Godot.Collections.Array ListDir(string relative, bool recursive, string extension, int limit = 0)
     {
         Godot.Collections.Array result = new();
-        string root = DiskPath(relative);
-        if (!DirAccess.DirExistsAbsolute(root)) return result;
+        if (!PackMounted) return result;
 
-        Walk(root, relative, recursive, extension, limit, result);
+        string root = ResPath(relative);
+        if (DirAccess.Open(root) == null) return result;
+
+        Walk(root, relative.Replace("\\", "/").Trim('/'), recursive, extension, limit, result);
         return result;
     }
 
@@ -85,56 +84,45 @@ public static class Assets
         DirAccess dir = DirAccess.Open(absolute);
         if (dir == null) return;
 
-        dir.ListDirBegin();
-        while (true)
+        foreach (string name in dir.GetDirectories())
         {
-            string name = dir.GetNext();
-            if (string.IsNullOrEmpty(name)) break;
             if (name.StartsWith(".")) continue;
+            if (!recursive) continue;
 
-            string childAbsolute = absolute + "/" + name;
             string childRelative = relative.Length == 0 ? name : relative + "/" + name;
-
-            if (dir.CurrentIsDir())
-            {
-                if (recursive) Walk(childAbsolute, childRelative, recursive, extension, limit, result);
-                continue;
-            }
-
-            if (extension.Length > 0 && !name.EndsWith(extension)) continue;
-
-            result.Add(childRelative);
-            if (limit > 0 && result.Count >= limit)
-            {
-                dir.ListDirEnd();
-                return;
-            }
+            Walk(absolute + "/" + name, childRelative, recursive, extension, limit, result);
+            if (limit > 0 && result.Count >= limit) return;
         }
 
-        dir.ListDirEnd();
+        foreach (string file in dir.GetFiles())
+        {
+            if (file.StartsWith(".")) continue;
+
+            string name = LogicalName(file);
+            if (extension.Length > 0 && !name.EndsWith(extension, StringComparison.OrdinalIgnoreCase)) continue;
+
+            result.Add(relative.Length == 0 ? name : relative + "/" + name);
+            if (limit > 0 && result.Count >= limit) return;
+        }
+    }
+
+    static string LogicalName(string packedName)
+    {
+        if (packedName.EndsWith(".remap")) return packedName[..^6];
+        if (packedName.EndsWith(".import")) return packedName[..^7];
+        return packedName;
     }
 
     public static ImageTexture LoadTexture(string relative)
     {
         if (string.IsNullOrEmpty(relative)) return null;
 
-        if (PackMounted)
-        {
-            string packed = ResPath(relative);
-            if (ResourceLoader.Exists(packed))
-            {
-                Texture2D loaded = ResourceLoader.Load<Texture2D>(packed);
-                if (loaded is ImageTexture texture) return texture;
-                if (loaded != null) return ImageTexture.CreateFromImage(loaded.GetImage());
-            }
-        }
+        string packed = ResPath(relative);
+        if (!ResourceLoader.Exists(packed)) return null;
 
-        string disk = DiskPath(relative);
-        if (!FileAccess.FileExists(disk)) return null;
-
-        Image image = Image.LoadFromFile(disk);
-        if (image == null || image.IsEmpty()) return null;
-        return ImageTexture.CreateFromImage(image);
+        Texture2D loaded = ResourceLoader.Load<Texture2D>(packed);
+        if (loaded is ImageTexture texture) return texture;
+        return loaded == null ? null : ImageTexture.CreateFromImage(loaded.GetImage());
     }
 
     public static AudioStream LoadAudio(string relative)

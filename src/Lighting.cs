@@ -12,7 +12,7 @@ public static class Lighting
 
     public static void Load()
     {
-        Variant json = Assets.ReadJson("Lighting/dnc.json");
+        Variant json = Assets.ReadJsonRes("res://assets/common/lighting/dnc.json");
         if (json.VariantType != Variant.Type.Dictionary) return;
 
         foreach (var entry in json.AsGodotDictionary())

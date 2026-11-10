@@ -365,6 +365,11 @@ public partial class DetailPage : Page
         return level > 0 && level < LevelNumbers.Length ? LevelNumbers[level] : $"{level}级";
     }
 
+    public void DumpParticles()
+    {
+        _preview?.DumpParticles();
+    }
+
     public void ApplyClip(string clip, float seekSeconds = -1f)
     {
         if (_preview == null || string.IsNullOrEmpty(clip)) return;
